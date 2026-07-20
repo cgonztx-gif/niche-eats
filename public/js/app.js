@@ -17,11 +17,11 @@ const el = {
   filter: document.getElementById('filter'),
 };
 
-/** 'all' | 'dessert' | 'no-dessert' — persisted so the choice survives reload. */
+/** 'all' | 'dessert' — persisted so the choice survives reload. */
 let filterMode = (() => {
   try {
     const saved = localStorage.getItem(FILTER_KEY);
-    return ['all', 'dessert', 'no-dessert'].includes(saved) ? saved : 'all';
+    return ['all', 'dessert'].includes(saved) ? saved : 'all';
   } catch {
     return 'all';
   }
@@ -120,11 +120,8 @@ const skeleton = () => `
       `<div class="h-[64px] animate-pulse rounded-xl border border-line bg-raised"></div>`).join('')}
   </div>`;
 
-const applyFilter = (list) => {
-  if (filterMode === 'dessert') return list.filter(isDessert);
-  if (filterMode === 'no-dessert') return list.filter((s) => !isDessert(s));
-  return list;
-};
+const applyFilter = (list) =>
+  filterMode === 'dessert' ? list.filter(isDessert) : list;
 
 const mutedPanel = (text) =>
   `<p class="rounded-xl border border-line bg-raised p-4 text-sm text-ink-soft">${text}</p>`;
