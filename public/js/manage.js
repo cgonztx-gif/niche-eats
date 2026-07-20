@@ -5,7 +5,7 @@
  * input so nothing is silently dropped — the whole point of the per-query
  * status the function returns.
  */
-import { resolveAndAdd, removeSpot, fetchSpots, BATCH_SIZE } from './api.js';
+import { resolveAndAdd, removeSpot, fetchSpots, geocodeReference, BATCH_SIZE } from './api.js';
 import { registerServiceWorker } from './pwa.js';
 
 const el = {
@@ -16,7 +16,30 @@ const el = {
   results: document.getElementById('results'),
   spotList: document.getElementById('spot-list'),
   spotCount: document.getElementById('spot-count'),
+  refLabel: document.getElementById('ref-label'),
+  refEdit: document.getElementById('ref-edit'),
+  refEditor: document.getElementById('ref-editor'),
+  refInput: document.getElementById('ref-input'),
+  refSet: document.getElementById('ref-set'),
 };
+
+const REF_KEY = 'niche-eats-reference';
+// Anchor for the add flow: candidates sort by proximity to this and a far match
+// is rejected. NOT the user's location — it's a per-device adding convenience.
+const DEFAULT_REFERENCE = { lat: 30.2849, lng: -97.7341, label: 'The University of Texas at Austin' };
+
+function getReference() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(REF_KEY));
+    if (saved && typeof saved.lat === 'number' && typeof saved.lng === 'number') return saved;
+  } catch { /* fall through to default */ }
+  return DEFAULT_REFERENCE;
+}
+
+function setReference(reference) {
+  try { localStorage.setItem(REF_KEY, JSON.stringify(reference)); } catch { /* private mode */ }
+  el.refLabel.textContent = reference.label;
+}
 
 /** Result rows, newest batch last. Each row owns one original query. */
 let rows = [];
@@ -64,27 +87,61 @@ function rowHtml(row, index) {
   }
 
   if (row.status === 'ambiguous') {
-    // Tapping a candidate confirms it by place_id, which is the only way past
-    // branches that share a name and have no distinguishing address token.
+    // Checkboxes, not single-tap: several branches of a chain can be added at
+    // once. Candidates arrive sorted nearest-first (to the reference) and each
+    // carries its distance so the closest is easy to spot.
     const options = (row.candidates ?? [])
-      .map(
-        (candidate, ci) => `
-        <button data-confirm="${index}" data-candidate="${ci}"
-          class="block w-full rounded-lg border border-line bg-base p-2.5 text-left transition
-                 hover:border-line-strong active:scale-[0.99] active:bg-pressed
-                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
-          <span class="block font-medium text-ink">${escapeHtml(candidate.name)}</span>
-          <span class="block truncate text-ink-soft">${escapeHtml(candidate.address ?? '')}</span>
-        </button>`,
-      )
+      .map((candidate, ci) => {
+        const dist = typeof candidate.distance_mi === 'number'
+          ? `<span class="shrink-0 tabular-nums text-ink-mute">${candidate.distance_mi} mi</span>` : '';
+        return `
+        <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-base p-2.5 transition
+                      hover:border-line-strong">
+          <input type="checkbox" data-cand="${ci}" class="mt-0.5 h-4 w-4 shrink-0 accent-open">
+          <span class="min-w-0 flex-1">
+            <span class="flex items-baseline justify-between gap-2">
+              <span class="truncate font-medium text-ink">${escapeHtml(candidate.name)}</span>${dist}
+            </span>
+            <span class="block truncate text-ink-soft">${escapeHtml(candidate.address ?? '')}</span>
+          </span>
+        </label>`;
+      })
       .join('');
 
     return shell(
       'border-line bg-raised',
       `<div class="mb-2.5 text-ink-soft">
-         Several matches for <span class="font-medium text-ink">${escapeHtml(row.query)}</span> — pick one:
+         Several matches for <span class="font-medium text-ink">${escapeHtml(row.query)}</span> — select any to add:
        </div>
-       <div class="space-y-1.5">${options}</div>`,
+       <div class="space-y-1.5">${options}</div>
+       <button data-add-selected="${index}"
+         class="mt-2.5 rounded-lg bg-open px-3 py-1.5 text-sm font-medium text-base transition
+                active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
+         Add selected</button>`,
+    );
+  }
+
+  if (row.status === 'note') {
+    return shell('border-line bg-raised', `<span class="text-ink-soft">${escapeHtml(row.message)}</span>`);
+  }
+
+  if (row.status === 'too_far') {
+    const dist = typeof row.distance_mi === 'number' ? `${row.distance_mi} mi` : 'far';
+    return shell(
+      'border-closed/50 bg-closed-dim',
+      `<div class="mb-2.5 text-red-200">
+         Nearest match${row.name ? ` (<span class="font-medium">${escapeHtml(row.name)}</span>)` : ''}
+         is ${dist} from your reference — check the name, or change the reference above.
+       </div>
+       <div class="flex gap-2">
+         <input data-edit="${index}" value="${escapeHtml(row.query)}" spellcheck="false"
+           class="min-w-0 flex-1 rounded-lg border border-line bg-base px-2.5 py-1.5 text-ink
+                  focus:border-line-strong focus:outline-none">
+         <button data-retry="${index}"
+           class="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-ink-soft transition
+                  active:scale-95 active:text-ink
+                  focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">Retry</button>
+       </div>`,
     );
   }
 
@@ -136,7 +193,7 @@ async function send(items) {
       if (batches.length > 1) {
         el.progress.textContent = `Batch ${batchIndex + 1} of ${batches.length}…`;
       }
-      const results = await resolveAndAdd(batch);
+      const results = await resolveAndAdd(batch, getReference());
       results.forEach((result, i) => {
         const target = indexes[done + i];
         rows[target] = { ...result, query: rows[target].query };
@@ -194,11 +251,23 @@ el.results.addEventListener('click', async (event) => {
     return send([{ index, payload: query }]);
   }
 
-  const confirm = event.target.closest('[data-confirm]');
-  if (confirm) {
-    const index = Number(confirm.dataset.confirm);
-    const candidate = rows[index].candidates[Number(confirm.dataset.candidate)];
-    return send([{ index, payload: { query: rows[index].query, placeId: candidate.place_id } }]);
+  const addSelected = event.target.closest('[data-add-selected]');
+  if (addSelected) {
+    const index = Number(addSelected.dataset.addSelected);
+    const container = el.results.querySelector(`[data-row="${index}"]`);
+    const checked = [...container.querySelectorAll('[data-cand]:checked')]
+      .map((box) => rows[index].candidates[Number(box.dataset.cand)]);
+    if (checked.length === 0) return showError('Select at least one match.');
+
+    clearError();
+    // Each selected candidate becomes its OWN new result row (keeping send()'s
+    // 1:1 index mapping), and the ambiguous row collapses to a note. Routing
+    // several adds back through the one ambiguous index would break that mapping.
+    rows[index] = { query: rows[index].query, status: 'note', message: `Added ${checked.length} place${checked.length > 1 ? 's' : ''}` };
+    const start = rows.length;
+    rows.push(...checked.map((c) => ({ query: c.name, status: 'pending' })));
+    renderResults();
+    return send(checked.map((c, i) => ({ index: start + i, payload: { query: c.name, placeId: c.place_id } })));
   }
 });
 
@@ -312,6 +381,44 @@ el.spotList.addEventListener('click', async (event) => {
     disarm(); // resets label/classes on this same button
     showError(`Couldn't remove ${spot.name}. ${error.message}`);
   }
+});
+
+// --- Reference point ---------------------------------------------------------
+
+// Reflect any stored reference on load (default label is already in the HTML).
+el.refLabel.textContent = getReference().label;
+
+el.refEdit.addEventListener('click', () => {
+  const opening = el.refEditor.classList.toggle('hidden') === false;
+  el.refEditor.classList.toggle('flex', opening);
+  if (opening) {
+    el.refInput.value = '';
+    el.refInput.focus();
+  }
+});
+
+async function setReferenceFromInput() {
+  const query = el.refInput.value.trim();
+  if (!query) return;
+  clearError();
+  el.refSet.disabled = true;
+  el.refSet.textContent = 'Setting…';
+  try {
+    const { lat, lng, label } = await geocodeReference(query);
+    setReference({ lat, lng, label });
+    el.refEditor.classList.add('hidden');
+    el.refEditor.classList.remove('flex');
+  } catch (error) {
+    showError(`Couldn't set reference. ${error.message}`);
+  } finally {
+    el.refSet.disabled = false;
+    el.refSet.textContent = 'Set';
+  }
+}
+
+el.refSet.addEventListener('click', setReferenceFromInput);
+el.refInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') setReferenceFromInput();
 });
 
 loadSpotList();

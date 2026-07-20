@@ -3,17 +3,29 @@
  * All decision logic lives in spots.js — this file only fetches and paints.
  */
 import { fetchSpots, getLocation } from './api.js';
-import { partitionSpots, formatDistance, mapsUrl } from './spots.js';
+import { partitionSpots, formatDistance, mapsUrl, statusLine, isDessert } from './spots.js';
 import { registerServiceWorker } from './pwa.js';
 
 const RERENDER_MS = 60_000;
+const FILTER_KEY = 'niche-eats-filter';
 
 const el = {
   subtitle: document.getElementById('subtitle'),
   notice: document.getElementById('notice'),
   content: document.getElementById('content'),
   refresh: document.getElementById('refresh'),
+  filter: document.getElementById('filter'),
 };
+
+/** 'all' | 'dessert' | 'no-dessert' — persisted so the choice survives reload. */
+let filterMode = (() => {
+  try {
+    const saved = localStorage.getItem(FILTER_KEY);
+    return ['all', 'dessert', 'no-dessert'].includes(saved) ? saved : 'all';
+  } catch {
+    return 'all';
+  }
+})();
 
 /** Apple Maps on Apple hardware, Google Maps everywhere else. */
 const USE_APPLE_MAPS =
@@ -41,14 +53,16 @@ function showNotice(html, tone = 'info') {
 
 const hideNotice = () => el.notice.classList.add('hidden');
 
-function card(spot, dimmed = false) {
-  // tabular-nums keeps "0.4 mi" and "11.2 mi" aligned down the column.
+function card(spot, dimmed, now) {
+  // Meta line: closing/opening time, then distance. Category is intentionally
+  // not shown. tabular-nums keeps "0.4 mi" and "11.2 mi" aligned down the column.
+  const timing = statusLine(spot.hours, now);
+  const timingPart = timing ? `<span>${escapeHtml(timing)}</span>` : '';
   const distance =
     spot.distance === null
       ? ''
       : `<span class="tabular-nums">${escapeHtml(formatDistance(spot.distance))}</span>`;
-  const category = spot.category ? `<span>${escapeHtml(spot.category)}</span>` : '';
-  const separator = category && distance ? '<span class="text-ink-mute">·</span>' : '';
+  const separator = timingPart && distance ? '<span class="text-ink-mute">·</span>' : '';
   // Tertiary line — distinguishes identical-name chain branches. Omitted (no
   // empty line) for rows added before the address column existed.
   const address = spot.formatted_address
@@ -65,7 +79,7 @@ function card(spot, dimmed = false) {
           ${escapeHtml(spot.name)}
         </span>
         <span class="mt-1 flex flex-wrap items-center gap-1.5 text-[13px] text-ink-soft">
-          ${category}${separator}${distance}
+          ${timingPart}${separator}${distance}
         </span>
         ${address}
       </span>
@@ -80,13 +94,13 @@ function card(spot, dimmed = false) {
  * cards are additionally dimmed. Green/red is the most common colour-blind
  * confusion pair, and open-vs-closed is the whole point of the screen.
  */
-function section(title, items, tone) {
+function section(title, items, tone, now) {
   if (items.length === 0) return '';
   const isOpen = tone === 'open';
 
   return `
     <section>
-      <div class="mb-3 flex items-center gap-2 border-b pb-2 ${isOpen ? 'border-open-dim' : 'border-closed-dim'}">
+      <div class="mb-3 flex items-center gap-2">
         <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full ${isOpen ? 'bg-open' : 'bg-closed'}"></span>
         <h2 class="text-[11px] font-semibold uppercase tracking-[0.1em] ${isOpen ? 'text-open' : 'text-closed'}">
           ${escapeHtml(title)}
@@ -94,7 +108,7 @@ function section(title, items, tone) {
         <span class="text-[11px] tabular-nums text-ink-mute">(${items.length})</span>
       </div>
       <div class="space-y-2 ${isOpen ? '' : 'opacity-70'}">
-        ${items.map((spot) => card(spot, !isOpen)).join('')}
+        ${items.map((spot) => card(spot, !isOpen, now)).join('')}
       </div>
     </section>`;
 }
@@ -106,8 +120,17 @@ const skeleton = () => `
       `<div class="h-[64px] animate-pulse rounded-xl border border-line bg-raised"></div>`).join('')}
   </div>`;
 
+const applyFilter = (list) => {
+  if (filterMode === 'dessert') return list.filter(isDessert);
+  if (filterMode === 'no-dessert') return list.filter((s) => !isDessert(s));
+  return list;
+};
+
+const mutedPanel = (text) =>
+  `<p class="rounded-xl border border-line bg-raised p-4 text-sm text-ink-soft">${text}</p>`;
+
 function render() {
-  const { open, closed } = partitionSpots(spots, origin, new Date());
+  syncFilterControl();
 
   if (spots.length === 0) {
     el.content.innerHTML = '';
@@ -117,20 +140,26 @@ function render() {
     return;
   }
 
+  const now = new Date();
+  const filtered = applyFilter(spots);
+  const { open, closed } = partitionSpots(filtered, origin, now);
+
   el.subtitle.textContent = origin
     ? `${open.length} open now · nearest first`
     : `${open.length} open now`;
 
+  if (filtered.length === 0) {
+    el.content.innerHTML = mutedPanel(
+      filterMode === 'dessert' ? 'No dessert spots in the list yet.' : 'Nothing matches this filter.',
+    );
+    return;
+  }
+
   el.content.innerHTML =
-    section('Open now', open, 'open') + section('Closed', closed, 'closed');
+    section('Open now', open, 'open', now) + section('Closed', closed, 'closed', now);
 
   if (open.length === 0) {
-    el.content.insertAdjacentHTML(
-      'afterbegin',
-      `<p class="rounded-xl border border-line bg-raised p-4 text-sm text-ink-soft">
-         Nothing is open right now.
-       </p>`,
-    );
+    el.content.insertAdjacentHTML('afterbegin', mutedPanel('Nothing is open right now.'));
   }
 }
 
@@ -201,6 +230,28 @@ async function load() {
 }
 
 el.refresh.addEventListener('click', load);
+
+/** Reflect filterMode in the segmented control (active button styling + a11y). */
+function syncFilterControl() {
+  if (!el.filter) return;
+  for (const button of el.filter.querySelectorAll('[data-filter]')) {
+    const active = button.dataset.filter === filterMode;
+    button.setAttribute('aria-pressed', String(active));
+    button.className = active
+      ? 'flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium bg-pressed text-ink transition'
+      : 'flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium text-ink-soft transition active:scale-95';
+  }
+}
+
+if (el.filter) {
+  el.filter.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-filter]');
+    if (!button) return;
+    filterMode = button.dataset.filter;
+    try { localStorage.setItem(FILTER_KEY, filterMode); } catch { /* private mode */ }
+    render();
+  });
+}
 
 el.notice.addEventListener('click', (event) => {
   if (event.target.id !== 'locate') return;

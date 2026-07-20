@@ -77,6 +77,17 @@
     <!-- Non-blocking notices: location state, load errors, empty list. -->
     <div id="notice" class="hidden mb-5 rounded-xl border border-line bg-raised p-3 text-sm"></div>
 
+    <!-- Dessert filter: All / Desserts / No desserts. -->
+    <div id="filter" role="group" aria-label="Filter spots"
+         class="mb-5 flex gap-1 rounded-xl border border-line bg-raised p-1">
+      <button data-filter="all" aria-pressed="true"
+        class="flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium bg-pressed text-ink transition">All</button>
+      <button data-filter="dessert" aria-pressed="false"
+        class="flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium text-ink-soft transition active:scale-95">Desserts</button>
+      <button data-filter="no-dessert" aria-pressed="false"
+        class="flex-1 rounded-lg px-3 py-1.5 text-[13px] font-medium text-ink-soft transition active:scale-95">No desserts</button>
+    </div>
+
     <main id="content" class="space-y-8"></main>
 
     <footer class="pt-10 text-center text-xs">

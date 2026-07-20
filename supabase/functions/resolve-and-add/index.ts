@@ -14,8 +14,19 @@
 
 import { transformHours } from "../_shared/hours.ts";
 import { classifyCandidates, type Candidate } from "../_shared/match.ts";
+import { haversineMiles, type LatLng } from "../_shared/geo.ts";
 
 const PLACES_ENDPOINT = "https://places.googleapis.com/v1/places:searchText";
+
+/** A match this far from the reference is treated as the wrong place. */
+const MAX_REFERENCE_MILES = 60;
+
+/**
+ * Places locationBias circles cap at 50 km, short of the 60-mile gate. That's
+ * fine: the bias only nudges Google's ranking toward nearby matches — the
+ * authoritative distance check is the Haversine gate below.
+ */
+const BIAS_RADIUS_METERS = 50000;
 
 /**
  * regularOpeningHours already puts this call in the top Text Search SKU, and
@@ -58,7 +69,21 @@ interface SpotRow {
   hours_updated_at: string;
 }
 
-async function searchPlaces(query: string, apiKey: string): Promise<Candidate[]> {
+async function searchPlaces(
+  query: string,
+  apiKey: string,
+  reference: LatLng | null,
+): Promise<Candidate[]> {
+  const requestBody: Record<string, unknown> = { textQuery: query };
+  if (reference) {
+    requestBody.locationBias = {
+      circle: {
+        center: { latitude: reference.lat, longitude: reference.lng },
+        radius: BIAS_RADIUS_METERS,
+      },
+    };
+  }
+
   const response = await fetch(PLACES_ENDPOINT, {
     method: "POST",
     headers: {
@@ -66,7 +91,7 @@ async function searchPlaces(query: string, apiKey: string): Promise<Candidate[]>
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask": FIELD_MASK,
     },
-    body: JSON.stringify({ textQuery: query }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -76,6 +101,24 @@ async function searchPlaces(query: string, apiKey: string): Promise<Candidate[]>
 
   const body = await response.json();
   return body.places ?? [];
+}
+
+/** Miles from the reference to a candidate, or null if either lacks coords. */
+function candidateMiles(candidate: Candidate, reference: LatLng | null): number | null {
+  if (!reference) return null;
+  const lat = candidate.location?.latitude;
+  const lng = candidate.location?.longitude;
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  return haversineMiles(reference, { lat, lng });
+}
+
+/** Pull a usable `{ lat, lng }` reference out of the request body, if present. */
+function parseReference(raw: unknown): LatLng | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { lat, lng } = raw as { lat?: unknown; lng?: unknown };
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng };
 }
 
 function toRow(candidate: Candidate): SpotRow | null {
@@ -134,12 +177,14 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Function is missing required secrets" }, 500);
   }
 
-  let queries: unknown;
+  let body: { queries?: unknown; reference?: unknown };
   try {
-    queries = (await req.json())?.queries;
+    body = (await req.json()) ?? {};
   } catch {
     return json({ error: "Body must be JSON" }, 400);
   }
+  const queries = body.queries;
+  const reference = parseReference(body.reference);
 
   if (!Array.isArray(queries) || queries.length === 0) {
     return json({ error: "Expected { queries: string[] } with at least one entry" }, 400);
@@ -166,7 +211,7 @@ Deno.serve(async (req: Request) => {
 
   for (const { query, placeId } of cleaned) {
     try {
-      const candidates = await searchPlaces(query, googleKey);
+      const candidates = await searchPlaces(query, googleKey, reference);
 
       // An explicit placeId is a user confirming one of the options we already
       // showed them, so it overrides scoring entirely. Same search call, no
@@ -179,6 +224,26 @@ Deno.serve(async (req: Request) => {
               : ({ status: "not_found" } as const);
           })()
         : classifyCandidates(query, candidates);
+
+      // The reference gate applies to the "first match found" — the resolved
+      // match, or the top-scored option when ambiguous. If that primary
+      // candidate is farther than the cap from the reference, the whole match
+      // set is in the wrong region (a typo or wrong city), so reject it. A
+      // confirm-by-placeId is a deliberate user choice and bypasses the gate.
+      if (reference && !placeId && verdict.status !== "not_found") {
+        const primary = verdict.status === "resolved" ? verdict.match : verdict.options?.[0]?.candidate;
+        const miles = primary ? candidateMiles(primary, reference) : null;
+        if (miles !== null && miles > MAX_REFERENCE_MILES) {
+          results.push({
+            query,
+            status: "too_far",
+            name: primary?.displayName?.text ?? null,
+            address: primary?.formattedAddress ?? null,
+            distance_mi: Math.round(miles),
+          });
+          continue;
+        }
+      }
 
       if (verdict.status === "resolved" && verdict.match) {
         const row = toRow(verdict.match);
@@ -197,15 +262,21 @@ Deno.serve(async (req: Request) => {
       } else if (verdict.status === "ambiguous") {
         // Not written on purpose: a wrong row is worse than a missing one, so
         // the user picks a candidate or retries with a more specific string.
-        results.push({
-          query,
-          status: "ambiguous",
-          candidates: verdict.options?.map(({ candidate }) => ({
+        // With a reference, order candidates nearest-first and tag each with
+        // its distance so the picker can show and rank by it.
+        const options = (verdict.options ?? []).map(({ candidate }) => {
+          const miles = candidateMiles(candidate, reference);
+          return {
             place_id: candidate.id, // sent back as { query, placeId } to confirm
             name: candidate.displayName?.text ?? null,
             address: candidate.formattedAddress ?? null,
-          })),
+            distance_mi: miles === null ? null : Math.round(miles * 10) / 10,
+          };
         });
+        if (reference) {
+          options.sort((a, b) => (a.distance_mi ?? Infinity) - (b.distance_mi ?? Infinity));
+        }
+        results.push({ query, status: "ambiguous", candidates: options });
       } else {
         results.push({ query, status: "not_found" });
       }

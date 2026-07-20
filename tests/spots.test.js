@@ -6,6 +6,8 @@ import {
   formatDistance,
   mapsUrl,
   partitionSpots,
+  isDessert,
+  statusLine,
 } from '../public/js/spots.js';
 
 /** Local-time Date. Month is 0-indexed. 2026-07-20 is a Monday. */
@@ -90,9 +92,55 @@ test('haversine is zero for identical points', () => {
 });
 
 test('distance formatting', () => {
-  assert.equal(formatDistance(0.42), '0.4 mi away');
-  assert.equal(formatDistance(12.35), '12.3 mi away');
+  assert.equal(formatDistance(0.42), '0.4 mi');
+  assert.equal(formatDistance(12.35), '12.3 mi');
   assert.equal(formatDistance(0.05), 'nearby');
+});
+
+test('isDessert matches sweets categories, case-insensitive', () => {
+  assert.equal(isDessert({ category: 'Ice Cream Shop' }), true);
+  assert.equal(isDessert({ category: 'Dessert Restaurant' }), true);
+  assert.equal(isDessert({ category: 'Chocolate Shop' }), true);
+  assert.equal(isDessert({ category: 'BAKERY' }), true);
+  assert.equal(isDessert({ category: 'Gelato Shop' }), true);
+});
+
+test('isDessert is false for savory and missing categories', () => {
+  assert.equal(isDessert({ category: 'Taco Restaurant' }), false);
+  assert.equal(isDessert({ category: 'Barbecue Restaurant' }), false);
+  assert.equal(isDessert({ category: null }), false);
+  assert.equal(isDessert({}), false);
+});
+
+test('statusLine: open spot reports its closing time', () => {
+  assert.equal(statusLine(weekdayLunch, at(MON, 12)), 'Closes 2 PM');
+});
+
+test('statusLine: 24-hour venue reads "Open 24 hrs"', () => {
+  assert.equal(statusLine(allDay, at(MON, 3)), 'Open 24 hrs');
+});
+
+test('statusLine: overnight range still open past midnight reports next-morning close', () => {
+  assert.equal(statusLine(fridayLate, at(SAT, 0, 30)), 'Closes 2 AM');
+});
+
+test('statusLine: closed earlier in the day shows the upcoming open time', () => {
+  assert.equal(statusLine(weekdayLunch, at(MON, 9)), 'Opens 11 AM');
+});
+
+test('statusLine: closed for the day points at the next open day', () => {
+  // Monday-lunch spot, asked on Monday evening -> nothing until next Monday.
+  assert.equal(statusLine(weekdayLunch, at(MON, 20)), 'Opens Mon 11 AM');
+});
+
+test('statusLine: minutes shown only when non-zero', () => {
+  assert.equal(statusLine({ Monday: [['08:30', '16:45']] }, at(MON, 10)), 'Closes 4:45 PM');
+  assert.equal(statusLine({ Monday: [['08:30', '16:45']] }, at(MON, 7)), 'Opens 8:30 AM');
+});
+
+test('statusLine: unknown or empty hours yield an empty string', () => {
+  assert.equal(statusLine(null, at(MON, 12)), '');
+  assert.equal(statusLine({}, at(MON, 12)), '');
 });
 
 test('maps deep links target the right native app', () => {

@@ -66,6 +66,10 @@ A wrong row is worse than a missing one, so ambiguity never writes. The score is
 - Edge Functions are Deno/TypeScript (Supabase runtime).
 - `resolve-and-add` always takes an **array** of queries — a single add is an array of one. Its response is per-query status (`resolved` / `ambiguous` / `not_found`) so the UI can surface and retry misses rather than silently dropping them.
 - `remove-spot` is the delete writer — `POST { place_id }` → `{ removed }`. Kept separate from `resolve-and-add` (needs no Google key; a delete has no per-query shape). Its `place_id` is validated by the pure `_shared/remove-request.ts` **before** the DELETE URL is built — an unfiltered DELETE would wipe the table.
+- `geocode` resolves a typed address to `{ lat, lng, label }` for the add-flow **reference point**. Reuses Places Text Search with a minimal field mask (no opening hours = cheaper SKU); needs only the Google key.
+- **Reference point** (add flow): an optional `{ lat, lng }` passed to `resolve-and-add` alongside `queries`. It sorts ambiguous candidates nearest-first and rejects a best match >60 mi as `too_far` (nothing written). Default is UT Austin, editable client-side (stored in `localStorage`, per-device). It is **not** the user's geolocation — it only shapes adding. Distance math is `_shared/geo.ts` (a Deno-side copy of the browser's Haversine; the two runtimes can't share a module).
+- **Dessert filter** (dashboard): three-way All/Desserts/No-desserts, classified by `isDessert()` keyword-matching `category`. The card no longer displays `category`, but `fetchSpots` still selects it because the filter needs it.
+- **Card meta**: shows `statusLine` (closing/opening time) + distance (`8.3 mi`, no "away"); no category, no travel time (routing was rejected for breaking zero-cost browsing).
 - Secrets go in Edge Function secrets / `.env` (gitignored) — never committed, never in client source.
 
 ## Service worker

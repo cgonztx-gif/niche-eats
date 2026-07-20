@@ -96,10 +96,87 @@ export function haversineMiles(a, b) {
   return 2 * EARTH_RADIUS_MILES * Math.asin(Math.sqrt(h));
 }
 
-/** `0.42` -> `"0.4 mi away"`. Sub-tenth distances read as "nearby". */
+/** `0.42` -> `"0.4 mi"`. Sub-tenth distances read as "nearby". */
 export function formatDistance(miles) {
   if (miles < 0.1) return 'nearby';
-  return `${miles.toFixed(1)} mi away`;
+  return `${miles.toFixed(1)} mi`;
+}
+
+// Keyword match against Google's category (primaryTypeDisplayName). The card no
+// longer shows the category, but the dessert filter still reads it, so it stays
+// in the fetched data.
+const DESSERT_KEYWORDS = [
+  'dessert', 'ice cream', 'gelato', 'frozen yogurt', 'froyo', 'creamery',
+  'custard', 'bakery', 'pastry', 'cake', 'cupcake', 'cookie', 'donut',
+  'doughnut', 'chocolate', 'candy', 'sweets', 'pie',
+];
+
+/** True when a spot's category reads as a dessert/sweets place. */
+export function isDessert(spot) {
+  const category = (spot?.category ?? '').toLowerCase();
+  if (!category) return false;
+  return DESSERT_KEYWORDS.some((kw) => category.includes(kw));
+}
+
+/** `"22:00"` -> `"10 PM"`, `"09:30"` -> `"9:30 AM"`. Minutes shown only when set. */
+function formatTime12(time) {
+  const [hh, mm] = time.split(':').map(Number);
+  const period = hh >= 12 && hh < 24 ? 'PM' : 'AM';
+  const hour12 = hh % 12 === 0 ? 12 : hh % 12;
+  return mm === 0 ? `${hour12} ${period}` : `${hour12}:${String(mm).padStart(2, '0')} ${period}`;
+}
+
+/**
+ * A one-line time detail for a card: when an open spot closes, or when a closed
+ * spot next opens. Returns '' when hours are unknown or nothing is upcoming.
+ *
+ * Reuses the same range structure and overnight semantics as isOpenAt:
+ * `close <= open` spans midnight, `"24:00"` is end of day.
+ *
+ * @param {Record<string, [string,string][]>} hours
+ * @param {Date} now
+ */
+export function statusLine(hours, now = new Date()) {
+  if (!hours) return '';
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayIndex = now.getDay();
+  const yesterdayIndex = (todayIndex + 6) % 7;
+
+  // If open now, report the close time of the active range.
+  for (const range of hours[WEEKDAYS[todayIndex]] ?? []) {
+    const [open, close] = range;
+    if (open === '00:00' && close === '24:00') return 'Open 24 hrs';
+    const openMin = toMinutes(open);
+    if (isOvernight(range)) {
+      if (nowMinutes >= openMin) return `Closes ${formatTime12(close)}`;
+    } else if (nowMinutes >= openMin && nowMinutes < toMinutes(close)) {
+      return `Closes ${formatTime12(close)}`;
+    }
+  }
+  // Still open from an overnight range that started yesterday.
+  for (const range of hours[WEEKDAYS[yesterdayIndex]] ?? []) {
+    if (!isOvernight(range)) continue;
+    if (toMinutes(range[1]) >= MINUTES_PER_DAY) continue;
+    if (nowMinutes < toMinutes(range[1])) return `Closes ${formatTime12(range[1])}`;
+  }
+
+  // Closed now — find the next opening within the coming week. Scans through
+  // ahead === 7 so a spot open only on today's weekday still resolves to its
+  // next occurrence a week out rather than coming back empty.
+  for (let ahead = 0; ahead <= 7; ahead += 1) {
+    const dayIndex = (todayIndex + ahead) % 7;
+    for (const [open] of hours[WEEKDAYS[dayIndex]] ?? []) {
+      // Today's ranges only count if they haven't opened yet.
+      if (ahead === 0 && toMinutes(open) <= nowMinutes) continue;
+      const when = formatTime12(open);
+      if (ahead === 0) return `Opens ${when}`;
+      if (ahead === 1) return `Opens tomorrow ${when}`;
+      return `Opens ${WEEKDAYS[dayIndex].slice(0, 3)} ${when}`;
+    }
+  }
+
+  return '';
 }
 
 /**

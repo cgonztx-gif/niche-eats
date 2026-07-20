@@ -34,14 +34,17 @@ export const BATCH_SIZE = 25;
  * @param {Array<string|{query:string,placeId:string}>} queries
  *   A bare string, or `{ query, placeId }` to confirm a specific candidate
  *   from an earlier ambiguous result.
+ * @param {{lat:number,lng:number}|null} reference
+ *   Optional add-time anchor: candidates sort by proximity to it and a best
+ *   match more than 60 mi away comes back as `too_far`. Not the user's location.
  * @returns {Promise<Array>} one result per query: resolved / ambiguous /
- *   not_found / error. Partial failure is normal — the caller renders each.
+ *   too_far / not_found / error. Partial failure is normal — caller renders each.
  */
-export async function resolveAndAdd(queries) {
+export async function resolveAndAdd(queries, reference = null) {
   const response = await fetch(`${SUPABASE_URL}/functions/v1/resolve-and-add`, {
     method: 'POST',
     headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ queries }),
+    body: JSON.stringify({ queries, reference }),
   });
 
   let body;
@@ -89,6 +92,34 @@ export async function removeSpot(placeId) {
   }
 
   return body.removed ?? 0;
+}
+
+/**
+ * Resolve a typed address to coordinates for the add-flow reference point.
+ *
+ * @param {string} query  an address or place name
+ * @returns {Promise<{lat:number,lng:number,label:string}>}
+ * @throws if the address can't be found or the lookup fails
+ */
+export async function geocodeReference(query) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/geocode`, {
+    method: 'POST',
+    headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+
+  if (!response.ok || body.error) {
+    throw new Error(body.error ?? `Request failed (${response.status})`);
+  }
+
+  return { lat: body.lat, lng: body.lng, label: body.label };
 }
 
 /**

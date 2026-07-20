@@ -65,6 +65,25 @@
       </p>
     </header>
 
+    <!-- Reference point: a proximity anchor for adding, NOT the user's location.
+         Candidates sort by distance to it and a far match is rejected. -->
+    <section class="mb-6 rounded-xl border border-line bg-raised p-3">
+      <div class="flex items-baseline justify-between gap-2">
+        <span class="text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-mute">Reference point</span>
+        <button id="ref-edit" class="text-[12px] text-ink-soft underline underline-offset-2 transition hover:text-ink">Change</button>
+      </div>
+      <p id="ref-label" class="mt-1 truncate text-sm text-ink">The University of Texas at Austin</p>
+      <p class="mt-1 text-[12px] text-ink-mute">Used only here, to rank and sanity-check what you add — not your location.</p>
+      <div id="ref-editor" class="mt-2 hidden gap-2">
+        <input id="ref-input" spellcheck="false" placeholder="Address or place name"
+          class="min-w-0 flex-1 rounded-lg border border-line bg-base px-2.5 py-1.5 text-sm text-ink
+                 placeholder:text-ink-mute focus:border-line-strong focus:outline-none">
+        <button id="ref-set"
+          class="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-sm text-ink-soft transition
+                 active:scale-95 active:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">Set</button>
+      </div>
+    </section>
+
     <section class="space-y-3">
       <label for="queries" class="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-mute">
         Paste names — one per line
