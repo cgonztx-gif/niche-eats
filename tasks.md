@@ -107,10 +107,14 @@ Keeps hours fresh and sidesteps Google's Content caching limit. The app works wi
 
 ## Phase 8 — Deploy
 
-- [ ] Push to GitHub → enable Pages (or Cloudflare Pages); confirm HTTPS
-- [ ] Confirm geolocation works on the deployed origin (it will not over plain HTTP)
-- [ ] Seed the real list
+- [x] Push to GitHub → **https://github.com/cgonztx-gif/niche-eats** (public)
+- [x] Pages enabled via Actions workflow; tests gate the deploy
+- [x] **Live: https://cgonztx-gif.github.io/niche-eats/** — HTTPS confirmed, http redirects 301
+- [x] Service worker scopes correctly under the `/niche-eats/` subpath (relative paths); 12 assets cached, Supabase excluded
+- [ ] Grant location on the live site once (HTTPS requirement is met; the prompt needs a real tap)
+- [ ] Seed the real list — your call on which spots
 - [ ] Share URL; verify a second device sees the same spots
+- [ ] **Confirm the Google $1 budget alert is actually set** — with the manage UI public, this is now the only guard on quota spend
 
 ---
 

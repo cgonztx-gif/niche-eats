@@ -76,4 +76,10 @@ Icons are generated, not hand-drawn: `npm run icons` (see `tools/generate-icons.
 
 ## Deployment
 
-Frontend: GitHub Pages or Cloudflare Pages (HTTPS is required for geolocation and PWA). Backend: `supabase functions deploy`. Google Cloud needs a billing account attached with a low budget alert.
+**Live:** https://cgonztx-gif.github.io/niche-eats/ · repo `cgonztx-gif/niche-eats` (public)
+
+Frontend deploys automatically: pushing to `main` runs `.github/workflows/deploy.yml`, which runs the tests and then publishes `./public`. A failing test blocks the deploy. Backend is separate — `npx supabase functions deploy resolve-and-add --project-ref ebozpvpszregjuhkucas` after changing an Edge Function.
+
+Because the site is served from a subpath (`/niche-eats/`), all asset paths must stay **relative** (`./sw.js`, `./manifest.json`). An absolute `/sw.js` would break the service worker scope.
+
+**Known exposure:** the manage UI is unauthenticated and the anon key ships in the page, so anyone with the URL can call `resolve-and-add` and spend Google Places quota. This was an accepted trade-off; the Google budget alert is the only guard. If the URL spreads, add a shared passphrase check to the function.
