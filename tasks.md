@@ -6,6 +6,21 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` skipped
 
 ---
 
+## Feature — UI revisions round 2 (shipped)
+
+- [x] Remove colored divider line under section headers (dot + label stay)
+- [x] Three-way dessert filter (All/Desserts/No-desserts), `isDessert()` on category, persisted in localStorage
+- [x] Card: drop category, `8.3 mi` (no "away"), add `statusLine()` closing/opening time
+- [x] Add-flow reference point (default UT Austin, editable via new `geocode` Edge Function), persisted per-device
+- [x] `resolve-and-add` reference support: proximity-sorts ambiguous candidates, rejects best match >60 mi as `too_far`
+- [x] `_shared/geo.ts` Deno-side Haversine (+ tests)
+- [x] Multi-select ambiguous candidates (checkboxes + "Add selected")
+- [x] Travel time (drive/walk): scrapped — routing breaks zero-cost browsing
+- [x] `sw.js` → v5; 67 tests (12 new: isDessert, statusLine, geo)
+- [x] Verified live: no divider; card shows "Closes 10 PM · 0.3 mi"; filter partitions 21 = 4 desserts + 17, persists; geocode resolves UT/Seattle; Seattle reference makes an Austin query `too_far` (reference ≠ geolocation); multi-select added 2 branches (cleaned up)
+
+---
+
 ## Feature — Manage: spot list + remove (shipped)
 
 - [x] Migration `0002_add_formatted_address.sql` — nullable address column (applied to prod)
