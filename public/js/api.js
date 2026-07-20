@@ -25,6 +25,42 @@ export async function fetchSpots() {
   return response.json();
 }
 
+/** The function caps a single request; larger pastes are sent in chunks. */
+export const BATCH_SIZE = 25;
+
+/**
+ * Resolve names to spots and add them to the shared list.
+ *
+ * @param {Array<string|{query:string,placeId:string}>} queries
+ *   A bare string, or `{ query, placeId }` to confirm a specific candidate
+ *   from an earlier ambiguous result.
+ * @returns {Promise<Array>} one result per query: resolved / ambiguous /
+ *   not_found / error. Partial failure is normal — the caller renders each.
+ */
+export async function resolveAndAdd(queries) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/resolve-and-add`, {
+    method: 'POST',
+    headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ queries }),
+  });
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+
+  // A 502 still carries per-query results (places resolved, the write failed),
+  // so surface the message rather than discarding what we know.
+  if (!response.ok && !body.results) {
+    throw new Error(body.error ?? `Request failed (${response.status})`);
+  }
+  if (body.error) throw new Error(body.error);
+
+  return body.results ?? [];
+}
+
 /**
  * Current position, or null if the user declines or the lookup fails.
  *

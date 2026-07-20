@@ -77,12 +77,14 @@ The one writer for user actions. This is where the tricky logic lives.
 
 ## Phase 5 — Manage UI
 
-- [ ] Manage view (separate route or toggled panel)
-- [ ] Paste-to-seed textarea, split on newline → `resolve-and-add` with the array
-- [ ] Single-add input box → array of one
-- [ ] Per-line result feedback with inline edit-and-retry for `ambiguous` / `not_found`
-- [ ] **Pick-a-candidate escape hatch** — accept `{ query, placeId }` items so the UI can confirm one of the returned `ambiguous` options directly. Needed because two branches with an identical name *and* no distinguishing address token stay ambiguous forever; retyping can't fix it. Reuses the same Text Search call, matching on candidate id — no new endpoint.
-- [ ] Low-confidence matches show the resolved name/address for a one-tap confirm
+- [x] Manage view → `public/manage.html` + `public/js/manage.js`
+- [x] Paste-to-seed textarea, split on newline → `resolve-and-add` with the array
+- [x] Single add — same box with one line (an array of one); no separate control needed
+- [x] Per-line result feedback with inline edit-and-retry for `ambiguous` / `not_found`
+- [x] **Pick-a-candidate escape hatch** — `{ query, placeId }` items confirm one of the returned options. Reuses the same Text Search call, matching on candidate id; a bogus id falls back to `not_found` and writes nothing.
+- [x] Resolved rows show matched name + address, so a wrong match is visible immediately
+- [x] Requests chunked at 25/request to stay under the function cap
+- [x] Verified in-browser: batch of 3 → resolved / ambiguous / not_found rows; tap-to-confirm collapsed the ambiguous row; edit-and-retry resolved in place; new spot appeared on the dashboard
 
 ## Phase 6 — PWA layer
 

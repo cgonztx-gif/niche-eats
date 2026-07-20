@@ -2,6 +2,10 @@
  * resolve-and-add — the one writer for user actions.
  *
  * Input:  { "queries": ["Franklin Barbecue Austin TX", ...] }
+ *         An item may also be { query, placeId } to confirm one specific
+ *         candidate returned by an earlier "ambiguous" result. Two branches of
+ *         a chain can share a name AND have no distinguishing address token,
+ *         which no amount of retyping can separate — this is the way out.
  * Output: { "results": [{ query, status, ... }] }
  *
  * An array handles both batch seeding and a single add (an array of one).
@@ -140,19 +144,37 @@ Deno.serve(async (req: Request) => {
     return json({ error: `Too many queries (max ${MAX_QUERIES})` }, 400);
   }
 
+  /** A bare string, or { query, placeId } to confirm a specific candidate. */
   const cleaned = queries
-    .filter((q): q is string => typeof q === "string")
-    .map((q) => q.trim())
-    .filter(Boolean);
+    .map((item) => {
+      if (typeof item === "string") return { query: item.trim(), placeId: null };
+      if (item && typeof item === "object" && typeof (item as { query?: unknown }).query === "string") {
+        const { query, placeId } = item as { query: string; placeId?: unknown };
+        return { query: query.trim(), placeId: typeof placeId === "string" ? placeId : null };
+      }
+      return null;
+    })
+    .filter((item): item is { query: string; placeId: string | null } => Boolean(item?.query));
   if (cleaned.length === 0) return json({ error: "No usable queries" }, 400);
 
   const results: Record<string, unknown>[] = [];
   const rows = new Map<string, SpotRow>(); // keyed by place_id: dedupes within a batch
 
-  for (const query of cleaned) {
+  for (const { query, placeId } of cleaned) {
     try {
       const candidates = await searchPlaces(query, googleKey);
-      const verdict = classifyCandidates(query, candidates);
+
+      // An explicit placeId is a user confirming one of the options we already
+      // showed them, so it overrides scoring entirely. Same search call, no
+      // extra endpoint — we just pick by id instead of by score.
+      const verdict = placeId
+        ? (() => {
+            const chosen = candidates.find((c) => c.id === placeId);
+            return chosen
+              ? ({ status: "resolved", match: chosen } as const)
+              : ({ status: "not_found" } as const);
+          })()
+        : classifyCandidates(query, candidates);
 
       if (verdict.status === "resolved" && verdict.match) {
         const row = toRow(verdict.match);
@@ -175,6 +197,7 @@ Deno.serve(async (req: Request) => {
           query,
           status: "ambiguous",
           candidates: verdict.options?.map(({ candidate }) => ({
+            place_id: candidate.id, // sent back as { query, placeId } to confirm
             name: candidate.displayName?.text ?? null,
             address: candidate.formattedAddress ?? null,
           })),
