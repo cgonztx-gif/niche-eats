@@ -1,0 +1,19 @@
+# Secrets — never commit. The Google Places key and Supabase service-role key
+# live in Edge Function secrets, not in this repo.
+.env
+.env.*
+!.env.example
+
+# Dependencies (Edge Functions only; the frontend has no build step)
+node_modules/
+
+# Supabase CLI
+supabase/.temp/
+supabase/.branches/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
