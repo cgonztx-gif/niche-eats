@@ -4,6 +4,7 @@
  */
 import { fetchSpots, getLocation } from './api.js';
 import { partitionSpots, formatDistance, mapsUrl } from './spots.js';
+import { registerServiceWorker } from './pwa.js';
 
 const RERENDER_MS = 60_000;
 
@@ -138,4 +139,5 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && spots.length) render();
 });
 
+registerServiceWorker();
 load();

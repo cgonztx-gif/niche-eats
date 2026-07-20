@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Mobile-first PWA answering 'where can I eat right now?' from one shared list.",
   "scripts": {
-    "test": "node --test \"tests/*.test.js\" \"tests/*.test.ts\""
+    "test": "node --test \"tests/*.test.js\" \"tests/*.test.ts\"",
+    "icons": "node tools/generate-icons.mjs"
   }
 }

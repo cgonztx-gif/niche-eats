@@ -66,6 +66,14 @@ A wrong row is worse than a missing one, so ambiguity never writes. The score is
 - `resolve-and-add` always takes an **array** of queries — a single add is an array of one. Its response is per-query status (`resolved` / `ambiguous` / `not_found`) so the UI can surface and retry misses rather than silently dropping them.
 - Secrets go in Edge Function secrets / `.env` (gitignored) — never committed, never in client source.
 
+## Service worker
+
+`public/sw.js` is cache-first, so **bump `CACHE_VERSION` whenever a shell file changes** — otherwise returning users stay pinned to the old app. The worker reinstalls on any byte change to `sw.js`, and `skipWaiting` + `clients.claim` make the new shell apply on the next launch.
+
+Supabase requests deliberately bypass the cache. A stale spot list would show wrong open/closed state, which is worse than showing nothing.
+
+Icons are generated, not hand-drawn: `npm run icons` (see `tools/generate-icons.mjs`).
+
 ## Deployment
 
 Frontend: GitHub Pages or Cloudflare Pages (HTTPS is required for geolocation and PWA). Backend: `supabase functions deploy`. Google Cloud needs a billing account attached with a low budget alert.

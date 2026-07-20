@@ -6,6 +6,7 @@
  * status the function returns.
  */
 import { resolveAndAdd, BATCH_SIZE } from './api.js';
+import { registerServiceWorker } from './pwa.js';
 
 const el = {
   queries: document.getElementById('queries'),
@@ -157,6 +158,8 @@ el.submit.addEventListener('click', submit);
 el.queries.addEventListener('keydown', (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') submit();
 });
+
+registerServiceWorker();
 
 el.results.addEventListener('click', async (event) => {
   const retry = event.target.closest('[data-retry]');
