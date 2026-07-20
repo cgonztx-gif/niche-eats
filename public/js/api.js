@@ -15,7 +15,7 @@ const AUTH_HEADERS = {
 
 /** @returns {Promise<Array>} every spot in the shared list. */
 export async function fetchSpots() {
-  const url = `${SUPABASE_URL}/rest/v1/spots?select=id,place_id,name,category,lat,lng,hours`;
+  const url = `${SUPABASE_URL}/rest/v1/spots?select=id,place_id,name,category,formatted_address,lat,lng,hours`;
   const response = await fetch(url, { headers: AUTH_HEADERS });
 
   if (!response.ok) {
@@ -59,6 +59,36 @@ export async function resolveAndAdd(queries) {
   if (body.error) throw new Error(body.error);
 
   return body.results ?? [];
+}
+
+/**
+ * Remove one spot from the shared list by its Google place ID.
+ *
+ * Goes through the remove-spot Edge Function — the browser has no delete access
+ * to Postgres. AUTH_HEADERS stays module-local for exactly that reason.
+ *
+ * @param {string} placeId
+ * @returns {Promise<number>} rows removed (0 if it was already gone).
+ */
+export async function removeSpot(placeId) {
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/remove-spot`, {
+    method: 'POST',
+    headers: { ...AUTH_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ place_id: placeId }),
+  });
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error(`Server returned ${response.status}`);
+  }
+
+  if (!response.ok || body.error) {
+    throw new Error(body.error ?? `Request failed (${response.status})`);
+  }
+
+  return body.removed ?? 0;
 }
 
 /**

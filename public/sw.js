@@ -6,7 +6,7 @@
  * the new shell take effect on the next launch rather than lingering for a
  * session — without that, cache-first would pin users to a stale app forever.
  */
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = `niche-eats-${CACHE_VERSION}`;
 
 const SHELL = [

@@ -5,7 +5,7 @@
  * input so nothing is silently dropped — the whole point of the per-query
  * status the function returns.
  */
-import { resolveAndAdd, BATCH_SIZE } from './api.js';
+import { resolveAndAdd, removeSpot, fetchSpots, BATCH_SIZE } from './api.js';
 import { registerServiceWorker } from './pwa.js';
 
 const el = {
@@ -14,10 +14,21 @@ const el = {
   progress: document.getElementById('progress'),
   error: document.getElementById('error'),
   results: document.getElementById('results'),
+  spotList: document.getElementById('spot-list'),
+  spotCount: document.getElementById('spot-count'),
 };
 
 /** Result rows, newest batch last. Each row owns one original query. */
 let rows = [];
+
+// The spot list is a *separate* concern from the paste results above: keyed by
+// place_id, not by array index, and rendered into its own container. Keeping
+// the two states and their data-attributes disjoint is what stops the two
+// delegated click listeners from ever cross-firing.
+let spots = [];
+let loadingSpots = false;
+let armedId = null;   // place_id of the spot whose Remove button is armed
+let armTimer = null;  // auto-disarm timeout
 
 const escapeHtml = (value) =>
   String(value ?? '').replace(/[&<>"']/g, (ch) => ({
@@ -105,7 +116,7 @@ function rowHtml(row, index) {
   );
 }
 
-const render = () => {
+const renderResults = () => {
   el.results.innerHTML = rows.map(rowHtml).join('');
 };
 
@@ -115,8 +126,9 @@ async function send(items) {
   const payload = items.map((item) => item.payload);
 
   for (const i of indexes) rows[i].status = 'pending';
-  render();
+  renderResults();
 
+  let anyResolved = false;
   try {
     const batches = chunk(payload, BATCH_SIZE);
     let done = 0;
@@ -128,9 +140,10 @@ async function send(items) {
       results.forEach((result, i) => {
         const target = indexes[done + i];
         rows[target] = { ...result, query: rows[target].query };
+        if (result.status === 'resolved') anyResolved = true;
       });
       done += batch.length;
-      render();
+      renderResults();
     }
     el.progress.textContent = '';
   } catch (error) {
@@ -139,8 +152,12 @@ async function send(items) {
     for (const i of indexes) rows[i] = { ...rows[i], status: 'error', message: error.message };
     el.progress.textContent = '';
     showError(error.message);
-    render();
+    renderResults();
   }
+
+  // Anything that resolved changed the shared list, so re-sync the view below.
+  // One hook here covers submit, retry, and confirm-candidate alike.
+  if (anyResolved) loadSpotList();
 }
 
 async function submit() {
@@ -184,3 +201,117 @@ el.results.addEventListener('click', async (event) => {
     return send([{ index, payload: { query: rows[index].query, placeId: candidate.place_id } }]);
   }
 });
+
+// --- Spot list with per-row remove -----------------------------------------
+
+function spotRowHtml(spot) {
+  const address = spot.formatted_address
+    ? `<div class="truncate text-ink-soft">${escapeHtml(spot.formatted_address)}</div>`
+    : '';
+  return `
+    <div class="flex items-center justify-between gap-3 rounded-xl border border-line bg-raised p-3 text-sm">
+      <div class="min-w-0">
+        <div class="truncate font-medium text-ink">${escapeHtml(spot.name)}</div>
+        ${address}
+      </div>
+      <button data-remove="${escapeHtml(spot.place_id)}"
+        class="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-ink-soft transition
+               active:scale-95 active:text-ink
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">Remove</button>
+    </div>`;
+}
+
+function renderSpotList() {
+  // A full innerHTML replace clears any armed button, so reset the arm state
+  // rather than leaving armedId pointing at a button that no longer exists.
+  disarm();
+  el.spotCount.textContent = spots.length ? String(spots.length) : '';
+
+  if (spots.length === 0) {
+    el.spotList.innerHTML =
+      '<p class="text-ink-soft">Nothing in the list yet. Add a spot above.</p>';
+    return;
+  }
+  const ordered = [...spots].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
+  el.spotList.innerHTML = ordered.map(spotRowHtml).join('');
+}
+
+function spotListSkeleton() {
+  el.spotList.innerHTML = Array.from(
+    { length: 3 },
+    () => '<div class="h-[58px] animate-pulse rounded-xl border border-line bg-raised"></div>',
+  ).join('');
+}
+
+async function loadSpotList() {
+  if (loadingSpots) return;
+  loadingSpots = true;
+  if (spots.length === 0) spotListSkeleton();
+  try {
+    spots = await fetchSpots();
+    renderSpotList();
+  } catch (error) {
+    el.spotList.innerHTML = `
+      <div class="rounded-xl border border-closed/50 bg-closed-dim p-3 text-sm text-red-200">
+        Couldn't load the list. ${escapeHtml(error.message)}
+        <button data-reload-spots class="ml-1 font-medium text-ink underline underline-offset-2">Retry</button>
+      </div>`;
+  } finally {
+    loadingSpots = false;
+  }
+}
+
+/** Reset any armed Remove button back to its resting state. */
+function disarm() {
+  if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+  if (armedId === null) return;
+  const button = el.spotList.querySelector(`[data-remove="${CSS.escape(armedId)}"]`);
+  if (button) {
+    button.textContent = 'Remove';
+    button.className = button.className.replace(' border-closed text-closed', '');
+    button.removeAttribute('aria-label');
+  }
+  armedId = null;
+}
+
+el.spotList.addEventListener('click', async (event) => {
+  const reload = event.target.closest('[data-reload-spots]');
+  if (reload) return loadSpotList();
+
+  const button = event.target.closest('[data-remove]');
+  if (!button) return;
+  const placeId = button.dataset.remove;
+  const spot = spots.find((s) => s.place_id === placeId);
+  if (!spot) return;
+
+  // First tap on a fresh button arms it; a full re-render is deliberately
+  // avoided so focus survives and the interaction stays cheap.
+  if (armedId !== placeId) {
+    disarm();
+    armedId = placeId;
+    button.textContent = 'Remove?';
+    button.className += ' border-closed text-closed';
+    button.setAttribute('aria-label', `Confirm removing ${spot.name}`);
+    armTimer = setTimeout(disarm, 4000);
+    return;
+  }
+
+  // Second tap on the same button confirms the delete.
+  if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+  button.textContent = 'Removing…';
+  button.disabled = true;
+  clearError();
+  try {
+    await removeSpot(placeId);
+    // Local array is authoritative for a delete — splice and repaint, no refetch.
+    spots = spots.filter((s) => s.place_id !== placeId);
+    armedId = null;
+    renderSpotList();
+  } catch (error) {
+    button.disabled = false;
+    disarm(); // resets label/classes on this same button
+    showError(`Couldn't remove ${spot.name}. ${error.message}`);
+  }
+});
+
+loadSpotList();

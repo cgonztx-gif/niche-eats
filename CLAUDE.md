@@ -36,8 +36,9 @@ These are the design decisions that make the project cheap and safe. Don't relax
 
 One table, `spots`. Full DDL in brief §3. Key points:
 
-- `place_id text unique` — Google's ID. The uniqueness constraint makes re-seeding an idempotent no-op via upsert-on-conflict rather than a duplicate card.
+- `place_id text unique` — Google's ID. The uniqueness constraint makes re-seeding an idempotent no-op via upsert-on-conflict rather than a duplicate card. Also the delete key: `remove-spot` filters on it.
 - `hours jsonb` — `{ "Monday": [["11:00","22:00"]], ... }`. Array of `[open, close]` pairs per weekday; `[]` means closed that day.
+- `formatted_address text` (migration 0002, nullable) — Google's address string, shown to distinguish identical-name chain branches. `resolve-and-add` must always emit it (null when absent) so a merge-duplicates batch keeps a uniform key set.
 
 ### The two subtle bits of logic
 
@@ -49,7 +50,7 @@ Most of the bug surface in this app lives here. Treat both as worth unit-testing
 
 ### Why `_shared/match.ts` exists
 
-Not in the brief, but load-bearing. **Google Text Search has no "no result" state** — a nonsense query returns ~20 confident-looking restaurants (verified: `"asdkjhqwe nonexistent restaurant zzz"` → 20 candidates, top hit "SXSE Food Co"). Taking the top candidate on faith would silently write the wrong venue into a list everyone shares and that has **no delete UI**.
+Not in the brief, but load-bearing. **Google Text Search has no "no result" state** — a nonsense query returns ~20 confident-looking restaurants (verified: `"asdkjhqwe nonexistent restaurant zzz"` → 20 candidates, top hit "SXSE Food Co"). Taking the top candidate on faith would silently write the wrong venue into a list everyone shares. There is now a remove UI, but a wrong write is still worse than a miss — the shared list is unauthenticated, so anyone would see the bad row before it's noticed.
 
 So every candidate is scored against the query, and:
 
@@ -64,6 +65,7 @@ A wrong row is worse than a missing one, so ambiguity never writes. The score is
 - Vanilla ES6 modules, no transpilation. Target evergreen mobile browsers.
 - Edge Functions are Deno/TypeScript (Supabase runtime).
 - `resolve-and-add` always takes an **array** of queries — a single add is an array of one. Its response is per-query status (`resolved` / `ambiguous` / `not_found`) so the UI can surface and retry misses rather than silently dropping them.
+- `remove-spot` is the delete writer — `POST { place_id }` → `{ removed }`. Kept separate from `resolve-and-add` (needs no Google key; a delete has no per-query shape). Its `place_id` is validated by the pure `_shared/remove-request.ts` **before** the DELETE URL is built — an unfiltered DELETE would wipe the table.
 - Secrets go in Edge Function secrets / `.env` (gitignored) — never committed, never in client source.
 
 ## Service worker
@@ -82,4 +84,4 @@ Frontend deploys automatically: pushing to `main` runs `.github/workflows/deploy
 
 Because the site is served from a subpath (`/niche-eats/`), all asset paths must stay **relative** (`./sw.js`, `./manifest.json`). An absolute `/sw.js` would break the service worker scope.
 
-**Known exposure:** the manage UI is unauthenticated and the anon key ships in the page, so anyone with the URL can call `resolve-and-add` and spend Google Places quota. This was an accepted trade-off; the Google budget alert is the only guard. If the URL spreads, add a shared passphrase check to the function.
+**Known exposure:** the manage UI is unauthenticated and the anon key ships in the page, so anyone with the URL can call `resolve-and-add` (spending Google Places quota) **and `remove-spot` (deleting any spot)**. Accepted trade-off; the Google budget alert is the only quota guard. Deletion is destructive but recoverable — a removed spot is re-addable by pasting its name, since the data lives in Google, not our DB. If the URL spreads, add a shared passphrase check to both functions.

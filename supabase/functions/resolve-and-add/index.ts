@@ -51,6 +51,7 @@ interface SpotRow {
   place_id: string;
   name: string;
   category: string | null;
+  formatted_address: string | null;
   lat: number;
   lng: number;
   hours: ReturnType<typeof transformHours>;
@@ -93,6 +94,9 @@ function toRow(candidate: Candidate): SpotRow | null {
     place_id: placeId,
     name,
     category: candidate.primaryTypeDisplayName?.text ?? null,
+    // Always present (null when absent): merge-duplicates upsert requires a
+    // uniform key set across the batch. Already in the field mask, so free.
+    formatted_address: candidate.formattedAddress ?? null,
     lat,
     lng,
     hours: transformHours(candidate.regularOpeningHours as never),
@@ -191,8 +195,8 @@ Deno.serve(async (req: Request) => {
           place_id: row.place_id,
         });
       } else if (verdict.status === "ambiguous") {
-        // Not written on purpose: the list is shared and has no delete path,
-        // so the user retries with a more specific string instead.
+        // Not written on purpose: a wrong row is worse than a missing one, so
+        // the user picks a candidate or retries with a more specific string.
         results.push({
           query,
           status: "ambiguous",

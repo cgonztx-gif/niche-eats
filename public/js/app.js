@@ -49,6 +49,11 @@ function card(spot, dimmed = false) {
       : `<span class="tabular-nums">${escapeHtml(formatDistance(spot.distance))}</span>`;
   const category = spot.category ? `<span>${escapeHtml(spot.category)}</span>` : '';
   const separator = category && distance ? '<span class="text-ink-mute">·</span>' : '';
+  // Tertiary line — distinguishes identical-name chain branches. Omitted (no
+  // empty line) for rows added before the address column existed.
+  const address = spot.formatted_address
+    ? `<span class="mt-0.5 block truncate text-[12px] text-ink-mute">${escapeHtml(spot.formatted_address)}</span>`
+    : '';
 
   return `
     <a href="${mapsUrl(spot, USE_APPLE_MAPS)}" target="_blank" rel="noopener"
@@ -62,6 +67,7 @@ function card(spot, dimmed = false) {
         <span class="mt-1 flex flex-wrap items-center gap-1.5 text-[13px] text-ink-soft">
           ${category}${separator}${distance}
         </span>
+        ${address}
       </span>
       <span aria-hidden="true" class="shrink-0 text-ink-mute">→</span>
     </a>`;
