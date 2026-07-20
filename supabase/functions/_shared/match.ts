@@ -74,6 +74,37 @@ export interface Classification {
 }
 
 /**
+ * Breaks a name-score tie using the address.
+ *
+ * Chains give every branch the *identical* displayName ("Veracruz All Natural"),
+ * so name scoring alone can never separate them and the user would be stuck
+ * retyping forever. The brief already tells people to append a city, so the
+ * location words they add are the intended signal.
+ *
+ * Only query tokens absent from the name are counted — those are the ones doing
+ * disambiguating work. Tokens shared by every candidate (e.g. "austin") cancel
+ * out, leaving a tie, which is the correct answer for a genuinely vague query.
+ */
+function addressTiebreak(query: string, tied: ScoredCandidate[]): Candidate | null {
+  const queryTokens = tokenize(query);
+
+  const scores = tied.map(({ candidate }) => {
+    const nameTokens = tokenize(candidate.displayName?.text ?? "");
+    const addressTokens = tokenize(candidate.formattedAddress ?? "");
+    let hits = 0;
+    for (const token of queryTokens) {
+      if (!nameTokens.has(token) && addressTokens.has(token)) hits++;
+    }
+    return { candidate, hits };
+  });
+
+  scores.sort((a, b) => b.hits - a.hits);
+  // A strict winner only. Equal hits means the query didn't actually pick one.
+  if (scores[0].hits > 0 && scores[0].hits > scores[1].hits) return scores[0].candidate;
+  return null;
+}
+
+/**
  * Classify a query's candidates as resolved / ambiguous / not_found.
  *
  * Ambiguous results are deliberately NOT written. The list is shared and has no
@@ -98,6 +129,8 @@ export function classifyCandidates(
 
   const tied = scored.filter((s) => s.score >= top.score - TIE_MARGIN);
   if (tied.length > 1) {
+    const winner = addressTiebreak(query, tied);
+    if (winner) return { status: "resolved", match: winner };
     return { status: "ambiguous", options: tied.slice(0, 5) };
   }
 

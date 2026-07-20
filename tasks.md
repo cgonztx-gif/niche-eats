@@ -40,7 +40,7 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` skipped
 The one writer for user actions. This is where the tricky logic lives.
 
 - [x] Write function → `supabase/functions/resolve-and-add/index.ts`
-- [ ] Set secrets: `supabase secrets set GOOGLE_PLACES_API_KEY=…` (blocked on CLI login)
+- [x] Set secret `GOOGLE_PLACES_API_KEY` (`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` are auto-injected)
 - [x] Call Text Search per query with the field mask
 - [x] **Match scoring** → `_shared/match.ts` — reject junk results (see Notes)
 - [x] **Hours transform** — Google `periods[]` → `{ Weekday: [[open, close]] }` (`supabase/functions/_shared/hours.ts`)
@@ -52,8 +52,10 @@ The one writer for user actions. This is where the tricky logic lives.
 - [x] Per-query response status: `resolved` (with matched name + address) / `ambiguous` / `not_found`
 - [x] CORS headers so the browser can invoke it
 - [x] Pipeline verified end-to-end against live Google + Supabase (resolved / ambiguous / not_found all correct; rows cleaned up after)
-- [ ] **Deploy** `npx supabase functions deploy resolve-and-add` (blocked on CLI login)
-- [ ] Re-test the deployed endpoint via curl with a batch **and** a single-item array
+- [x] **Deployed** to project `ebozpvpszregjuhkucas`
+- [x] Live endpoint tested: batch (mixed outcomes) + single add
+- [x] Validation paths verified: empty array/malformed body/over-cap → 400, GET → 405, no auth → 401
+- [x] **Address tiebreak** — chains share one identical `displayName`, so name scoring alone left them permanently unresolvable
 
 ## Phase 4 — Frontend read + dashboard
 
@@ -79,6 +81,7 @@ The one writer for user actions. This is where the tricky logic lives.
 - [ ] Paste-to-seed textarea, split on newline → `resolve-and-add` with the array
 - [ ] Single-add input box → array of one
 - [ ] Per-line result feedback with inline edit-and-retry for `ambiguous` / `not_found`
+- [ ] **Pick-a-candidate escape hatch** — accept `{ query, placeId }` items so the UI can confirm one of the returned `ambiguous` options directly. Needed because two branches with an identical name *and* no distinguishing address token stay ambiguous forever; retyping can't fix it. Reuses the same Text Search call, matching on candidate id — no new endpoint.
 - [ ] Low-confidence matches show the resolved name/address for a one-tap confirm
 
 ## Phase 6 — PWA layer

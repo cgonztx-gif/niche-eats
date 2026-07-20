@@ -90,6 +90,51 @@ test('ambiguous options are capped at 5', () => {
   assert.equal(result.options?.length, 5);
 });
 
+// --- address tiebreak: chains whose branches share one identical name ---
+
+const branch = (name: string, address: string, id = address) => ({
+  id,
+  displayName: { text: name },
+  formattedAddress: address,
+});
+
+// Real case: these two are indistinguishable by name.
+const veracruz = [
+  branch('Veracruz All Natural', '111 E Cesar Chavez St, Austin, TX 78701, USA'),
+  branch('Veracruz All Natural', '2505 Webberville Rd, Austin, TX 78702, USA'),
+];
+
+test('street in the query breaks an identical-name tie', () => {
+  const result = classifyCandidates('Veracruz All Natural - Cesar Chavez Austin TX', veracruz);
+  assert.equal(result.status, 'resolved');
+  assert.match(result.match?.formattedAddress ?? '', /Cesar Chavez/);
+});
+
+test('the other branch resolves from its own street', () => {
+  const result = classifyCandidates('Veracruz All Natural Webberville Austin TX', veracruz);
+  assert.equal(result.status, 'resolved');
+  assert.match(result.match?.formattedAddress ?? '', /Webberville/);
+});
+
+test('a token shared by every branch does not break the tie', () => {
+  // "Austin" is in both addresses, so it disambiguates nothing.
+  const result = classifyCandidates('Veracruz All Natural Austin TX', veracruz);
+  assert.equal(result.status, 'ambiguous');
+});
+
+test('tiebreak does not fire when nothing in the query matches an address', () => {
+  const result = classifyCandidates('Veracruz All Natural', veracruz);
+  assert.equal(result.status, 'ambiguous');
+});
+
+test('tiebreak survives candidates with no address', () => {
+  const result = classifyCandidates('Spicy Boys', [
+    { id: 'a', displayName: { text: 'Spicy Boys' } },
+    { id: 'b', displayName: { text: 'Spicy Boys' } },
+  ]);
+  assert.equal(result.status, 'ambiguous');
+});
+
 test('candidate with no name does not throw', () => {
   const result = classifyCandidates('whatever', [{ id: 'x' }]);
   assert.equal(result.status, 'not_found');
