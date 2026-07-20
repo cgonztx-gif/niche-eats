@@ -45,7 +45,19 @@ Most of the bug surface in this app lives here. Treat both as worth unit-testing
 
 **Google `periods[]` → `hours` transform** (brief §4): group each period under its **open** day, so a Friday-night `["22:00","02:00"]` stays on Friday. `close.day != open.day` signals overnight. An `open` with no `close` means 24-hour → `[["00:00","24:00"]]`. Weekday with no period → `[]`.
 
-**Open-status check**: when `close < open` lexically, the range spans midnight — a spot open `["22:00","02:00"]` on Friday is still open at 00:30 Saturday. Naive string comparison gets this wrong.
+**Open-status check** (`public/js/spots.js`): when `close <= open`, the range spans midnight — a spot open `["22:00","02:00"]` on Friday is still open at 00:30 Saturday. The check reads *two* days: today's ranges plus yesterday's overnight spillover.
+
+### Why `_shared/match.ts` exists
+
+Not in the brief, but load-bearing. **Google Text Search has no "no result" state** — a nonsense query returns ~20 confident-looking restaurants (verified: `"asdkjhqwe nonexistent restaurant zzz"` → 20 candidates, top hit "SXSE Food Co"). Taking the top candidate on faith would silently write the wrong venue into a list everyone shares and that has **no delete UI**.
+
+So every candidate is scored against the query, and:
+
+- Weak top score → `not_found` (nothing written)
+- Several tied strong scores → `ambiguous` (nothing written; user retries with a more specific string)
+- One clear leader → `resolved` and upserted
+
+A wrong row is worse than a missing one, so ambiguity never writes. The score is the max of two directional token coverages — either direction alone misfires on real queries (see the comment in the file).
 
 ## Conventions
 

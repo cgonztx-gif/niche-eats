@@ -39,18 +39,21 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` skipped
 
 The one writer for user actions. This is where the tricky logic lives.
 
-- [ ] Scaffold function (`supabase functions new resolve-and-add`)
-- [ ] Set secrets: Google Places key, Supabase service-role key
-- [ ] Call Text Search per query with the tight field mask
+- [x] Write function → `supabase/functions/resolve-and-add/index.ts`
+- [ ] Set secrets: `supabase secrets set GOOGLE_PLACES_API_KEY=…` (blocked on CLI login)
+- [x] Call Text Search per query with the field mask
+- [x] **Match scoring** → `_shared/match.ts` — reject junk results (see Notes)
 - [x] **Hours transform** — Google `periods[]` → `{ Weekday: [[open, close]] }` (`supabase/functions/_shared/hours.ts`)
   - [x] Group periods under their **open** day (overnight ranges stay on the opening day)
   - [x] 24-hour venues (`open` with no `close`) → `[["00:00","24:00"]]`
   - [x] Weekdays with no period → `[]`
   - [x] Unit tests covering: normal day, overnight, 24h, closed day, malformed input
-- [ ] Upsert into `spots` on conflict with `place_id` (re-seeding must be a harmless no-op)
-- [ ] Per-query response status: `resolved` (with matched name + address) / `ambiguous` / `not_found`
-- [ ] CORS headers so the browser can invoke it
-- [ ] Deploy; test via curl with a batch **and** a single-item array
+- [x] Upsert into `spots` on conflict with `place_id` — verified idempotent (two upserts → one row)
+- [x] Per-query response status: `resolved` (with matched name + address) / `ambiguous` / `not_found`
+- [x] CORS headers so the browser can invoke it
+- [x] Pipeline verified end-to-end against live Google + Supabase (resolved / ambiguous / not_found all correct; rows cleaned up after)
+- [ ] **Deploy** `npx supabase functions deploy resolve-and-add` (blocked on CLI login)
+- [ ] Re-test the deployed endpoint via curl with a batch **and** a single-item array
 
 ## Phase 4 — Frontend read + dashboard
 

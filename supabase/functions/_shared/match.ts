@@ -1,0 +1,105 @@
+/**
+ * Decides whether a Google Text Search result is actually what the user typed.
+ *
+ * This exists because Text Search has no concept of "no match": a garbage query
+ * still returns 20 confident-looking restaurants. Taking the top candidate on
+ * faith would silently write the wrong venue into a shared list that has no
+ * delete UI, so every result is scored against the query first.
+ *
+ * Runtime-agnostic: no Deno or Node globals.
+ */
+
+export interface Candidate {
+  id: string;
+  displayName?: { text?: string };
+  formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+  primaryTypeDisplayName?: { text?: string };
+  regularOpeningHours?: unknown;
+}
+
+export type MatchStatus = "resolved" | "ambiguous" | "not_found";
+
+export interface ScoredCandidate {
+  candidate: Candidate;
+  score: number;
+}
+
+/** Below this, the top candidate is treated as junk rather than a weak match. */
+export const MIN_SCORE = 0.5;
+
+/** Candidates within this of the leader are considered tied. */
+export const TIE_MARGIN = 0.1;
+
+/** Lowercase, strip accents, split on anything non-alphanumeric. */
+export function tokenize(text: string): Set<string> {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+  return new Set(normalized.split(/[^a-z0-9]+/).filter(Boolean));
+}
+
+function overlap(a: Set<string>, b: Set<string>): number {
+  let hits = 0;
+  for (const token of a) if (b.has(token)) hits++;
+  return hits;
+}
+
+/**
+ * Similarity in [0, 1], the max of two directional coverages.
+ *
+ * Both directions are needed because either alone misfires:
+ *   - "Franklin Barbecue Austin TX" vs "Franklin Barbecue" — the city tokens the
+ *     user added for disambiguation aren't in the name, so query-coverage is
+ *     only 0.5 despite being an exact hit. Name-coverage is 1.0.
+ *   - "Spicy Boys" vs "Spicy Boys Fried Chicken - South Austin" — the user typed
+ *     a prefix, so name-coverage is 0.33. Query-coverage is 1.0.
+ * Taking the max lets either signal carry the match; junk scores 0 both ways.
+ */
+export function scoreMatch(query: string, name: string): number {
+  const q = tokenize(query);
+  const n = tokenize(name);
+  if (q.size === 0 || n.size === 0) return 0;
+  const shared = overlap(q, n);
+  return Math.max(shared / n.size, shared / q.size);
+}
+
+export interface Classification {
+  status: MatchStatus;
+  /** Set when status is "resolved". */
+  match?: Candidate;
+  /** Set when status is "ambiguous" — the tied candidates, for the retry UI. */
+  options?: ScoredCandidate[];
+}
+
+/**
+ * Classify a query's candidates as resolved / ambiguous / not_found.
+ *
+ * Ambiguous results are deliberately NOT written. The list is shared and has no
+ * delete path, so a wrong row is worse than a missing one — the user retries
+ * with a more specific string instead.
+ */
+export function classifyCandidates(
+  query: string,
+  candidates: Candidate[],
+): Classification {
+  if (!candidates || candidates.length === 0) return { status: "not_found" };
+
+  const scored: ScoredCandidate[] = candidates
+    .map((candidate) => ({
+      candidate,
+      score: scoreMatch(query, candidate.displayName?.text ?? ""),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  if (top.score < MIN_SCORE) return { status: "not_found" };
+
+  const tied = scored.filter((s) => s.score >= top.score - TIE_MARGIN);
+  if (tied.length > 1) {
+    return { status: "ambiguous", options: tied.slice(0, 5) };
+  }
+
+  return { status: "resolved", match: top.candidate };
+}
