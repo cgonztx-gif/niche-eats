@@ -6,6 +6,21 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` skipped
 
 ---
 
+## Feature — Manage: spot list + remove (shipped)
+
+- [x] Migration `0002_add_formatted_address.sql` — nullable address column (applied to prod)
+- [x] `resolve-and-add` persists `formatted_address` (always emitted, null when absent)
+- [x] New `remove-spot` Edge Function — `POST { place_id } → { removed }`, deployed
+- [x] Pure `_shared/remove-request.ts` validator guarding the DELETE (10 tests)
+- [x] `api.js` — `fetchSpots` selects address; new `removeSpot()`
+- [x] Manage list section with two-tap confirm remove; disjoint state from paste-results
+- [x] Dashboard cards show address as a tertiary line (omitted when null)
+- [x] `sw.js` → v4
+- [x] Verified live: add stores address, add refreshes list, two-tap remove deletes (persists on reload), ambiguous-paste picker still works, dashboard null case shows no empty line
+- [x] Backfilled all 21 existing rows via place_id confirm — 0 nulls, no dupes, Veracruz branches now distinguishable
+
+---
+
 ## Phase 0 — Repo setup
 
 - [x] `git init`, first commit
