@@ -17,21 +17,23 @@ Status: `[ ]` todo · `[~]` in progress · `[x]` done · `[-]` skipped
 
 *Manual console work — needs the user's account.*
 
-- [ ] Create Supabase project, note region
-- [ ] Create `spots` table (DDL in brief §3)
-- [ ] Enable RLS on `spots`; add public **read** policy; confirm **no** client write policy exists
-- [ ] Verify anon key can `select` but cannot `insert` (test with curl)
-- [ ] Record anon key (client-safe) and service-role key (secret) somewhere secure
+- [x] Create Supabase project — verified live, anon key authenticates
+- [x] Write `spots` migration → `supabase/migrations/0001_create_spots.sql`
+- [ ] **Apply the migration** (paste into Supabase SQL editor — blocked on user)
+- [ ] Re-run the curl checks: anon `select` succeeds, anon `insert` is denied
+- [x] Record anon key (client-safe) and service-role key (secret) in gitignored `.env`
 
 ## Phase 2 — Google Cloud
 
 *Manual console work — needs the user's account and a card on file.*
 
-- [ ] Create GCP project, attach billing account (mandatory even on free tier)
-- [ ] Enable **Places API (New)**
-- [ ] Create API key, restrict to Places API only
+- [x] Create GCP project — `460393979096`, key is valid
+- [ ] Attach billing account (not yet confirmed — the API-disabled error masks billing state)
+- [ ] **Enable Places API (New)** — blocked on user; returns `SERVICE_DISABLED`
+- [x] Create API key
+- [ ] Restrict key to Places API only
 - [ ] Set a low budget alert (~$1) as a tripwire
-- [ ] Smoke-test `places:searchText` with curl and the exact field mask from brief §4
+- [ ] Re-run the `places:searchText` smoke test with the field mask from brief §4
 
 ## Phase 3 — `resolve-and-add` Edge Function
 
