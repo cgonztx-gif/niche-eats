@@ -1,6 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isOpenAt, haversineMiles, formatDistance } from '../public/js/spots.js';
+import {
+  isOpenAt,
+  haversineMiles,
+  formatDistance,
+  mapsUrl,
+  partitionSpots,
+} from '../public/js/spots.js';
 
 /** Local-time Date. Month is 0-indexed. 2026-07-20 is a Monday. */
 const at = (day, hour, minute = 0) => new Date(2026, 6, day, hour, minute);
@@ -87,4 +93,53 @@ test('distance formatting', () => {
   assert.equal(formatDistance(0.42), '0.4 mi away');
   assert.equal(formatDistance(12.35), '12.3 mi away');
   assert.equal(formatDistance(0.05), 'nearby');
+});
+
+test('maps deep links target the right native app', () => {
+  const spot = { lat: 30.27, lng: -97.74 };
+  assert.equal(mapsUrl(spot, true), 'https://maps.apple.com/?daddr=30.27,-97.74');
+  assert.equal(
+    mapsUrl(spot, false),
+    'https://www.google.com/maps/dir/?api=1&destination=30.27,-97.74',
+  );
+});
+
+// Austin coordinates; `here` is downtown.
+const here = { lat: 30.2672, lng: -97.7431 };
+const spotAt = (name, lat, lng, hours) => ({ name, lat, lng, hours });
+
+const FIXTURES = [
+  spotAt('Far Open', 30.4, -97.9, { Monday: [['00:00', '24:00']] }),
+  spotAt('Near Open', 30.269, -97.744, { Monday: [['00:00', '24:00']] }),
+  spotAt('Near Closed', 30.268, -97.743, { Tuesday: [['11:00', '14:00']] }),
+  spotAt('Far Closed', 30.5, -98.0, { Tuesday: [['11:00', '14:00']] }),
+];
+
+test('partition splits open from closed', () => {
+  const { open, closed } = partitionSpots(FIXTURES, here, at(MON, 12));
+  assert.deepEqual(open.map((s) => s.name), ['Near Open', 'Far Open']);
+  assert.deepEqual(closed.map((s) => s.name), ['Near Closed', 'Far Closed']);
+});
+
+test('each bucket is sorted nearest-first', () => {
+  const { open } = partitionSpots(FIXTURES, here, at(MON, 12));
+  assert.ok(open[0].distance < open[1].distance);
+});
+
+test('distance is attached to each spot', () => {
+  const { open } = partitionSpots(FIXTURES, here, at(MON, 12));
+  assert.equal(typeof open[0].distance, 'number');
+});
+
+test('without location the list still renders, sorted by name', () => {
+  // The permission prompt must not leave the user staring at an empty screen.
+  const { open, closed } = partitionSpots(FIXTURES, null, at(MON, 12));
+  assert.deepEqual(open.map((s) => s.name), ['Far Open', 'Near Open']);
+  assert.deepEqual(closed.map((s) => s.name), ['Far Closed', 'Near Closed']);
+  assert.equal(open[0].distance, null);
+});
+
+test('partition tolerates an empty or missing list', () => {
+  assert.deepEqual(partitionSpots([], here), { open: [], closed: [] });
+  assert.deepEqual(partitionSpots(null, here), { open: [], closed: [] });
 });

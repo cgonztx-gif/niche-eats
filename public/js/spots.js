@@ -101,3 +101,45 @@ export function formatDistance(miles) {
   if (miles < 0.1) return 'nearby';
   return `${miles.toFixed(1)} mi away`;
 }
+
+/**
+ * Deep link into the native maps app. Apple Maps on iOS, Google Maps elsewhere —
+ * no embedded tiles, which is the one thing that would bill per view.
+ */
+export function mapsUrl(spot, useAppleMaps) {
+  const dest = `${spot.lat},${spot.lng}`;
+  return useAppleMaps
+    ? `https://maps.apple.com/?daddr=${dest}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${dest}`;
+}
+
+/**
+ * Split spots into open/closed buckets, each sorted nearest-first.
+ *
+ * `origin` is null until the user grants location. The list still renders in
+ * that case — distance just isn't known, so it falls back to alphabetical
+ * rather than showing an empty screen behind a permission prompt.
+ *
+ * @param {Array} spots
+ * @param {{lat:number,lng:number}|null} origin
+ * @param {Date} now
+ */
+export function partitionSpots(spots, origin, now = new Date()) {
+  const decorated = (spots ?? []).map((spot) => ({
+    ...spot,
+    distance: origin ? haversineMiles(origin, spot) : null,
+    isOpen: isOpenAt(spot.hours, now),
+  }));
+
+  const byDistanceThenName = (a, b) => {
+    if (a.distance !== null && b.distance !== null && a.distance !== b.distance) {
+      return a.distance - b.distance;
+    }
+    return (a.name ?? '').localeCompare(b.name ?? '');
+  };
+
+  return {
+    open: decorated.filter((s) => s.isOpen).sort(byDistanceThenName),
+    closed: decorated.filter((s) => !s.isOpen).sort(byDistanceThenName),
+  };
+}

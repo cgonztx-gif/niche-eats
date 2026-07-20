@@ -61,19 +61,19 @@ The one writer for user actions. This is where the tricky logic lives.
 
 **App is fully usable when this phase closes.**
 
-- [ ] `index.html` shell — Tailwind Play CDN, mobile-first, viewport meta
-- [ ] Supabase client (anon key) — `select * from spots`
-- [ ] `navigator.geolocation` with permission-denied and error states handled
+- [x] `index.html` shell — Tailwind Play CDN, mobile-first, viewport meta
+- [x] Supabase read (anon key) — plain `fetch` against PostgREST, not `supabase-js` (see Notes)
+- [x] `navigator.geolocation` with permission-denied and error states handled
 - [x] Haversine distance helper (`public/js/spots.js`)
 - [x] **Open-status function** — current local time vs `hours`
   - [x] Overnight handling: `close <= open` spans midnight (a Fri `["22:00","02:00"]` spot is open Sat 00:30)
   - [x] Unit tests for the boundary cases
-- [ ] Render **Open Now** (primary) and **Closed** (secondary, de-emphasized) buckets, each nearest-first
+- [x] Render **Open Now** (primary) and **Closed** (secondary, de-emphasized) buckets, each nearest-first
 - [x] Distance label — `"0.4 mi away"` (`formatDistance`)
-- [ ] Maps deep link per card (`maps.apple.com/?daddr=` / `google.com/maps/dir/?api=1&destination=`)
-- [ ] Refresh-location control
-- [ ] Empty state (no spots seeded yet) and no-location state
-- [ ] Optional: 60s auto-re-render so open/closed flips with the clock
+- [x] Maps deep link per card (`maps.apple.com/?daddr=` / `google.com/maps/dir/?api=1&destination=`)
+- [x] Refresh control (re-reads the list and re-locates)
+- [x] Empty state, no-location state, and load-failure state — all three verified in-browser
+- [x] 60s auto-re-render, plus a re-render on `visibilitychange` (a PWA resumed from background can be hours stale)
 
 ## Phase 5 — Manage UI
 
@@ -109,6 +109,12 @@ Keeps hours fresh and sidesteps Google's Content caching limit. The app works wi
 - [ ] Share URL; verify a second device sees the same spots
 
 ---
+
+## Notes & known rough edges
+
+- **Read path uses plain `fetch`, not `@supabase/supabase-js`.** Brief §7 names the client library, but the read is a single `select *`. A CDN import would add a network dependency and a failure mode to a page whose entire selling point is launching instantly. The anon key + PostgREST URL do the same job in ~10 lines.
+- **Chains are visually identical in the list.** Two `Veracruz All Natural` rows render with the same name and category; only distance separates them, and that's absent until location is granted. `spots` has no address column (brief §3), so there's nothing else to show. Options: add a `formatted_address` column and a subtitle, or accept it. Not fixed — needs a call.
+- **Refresh stays disabled while geolocation resolves** (up to 10s if the user ignores the prompt). The list is already rendered underneath, so it reads as "still working" rather than broken. Left as-is.
 
 ## Open questions
 

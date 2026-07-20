@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Eats">
+  <title>Niche Eats</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Safe-area padding so the app sits flush when launched from the Home Screen. */
+    body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+    .pad-x { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+  </style>
+</head>
+
+<body class="min-h-full bg-slate-950 text-slate-100 antialiased">
+  <div class="mx-auto max-w-2xl pad-x pb-16">
+
+    <header class="flex items-baseline justify-between gap-3 pt-6 pb-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">Niche Eats</h1>
+        <p id="subtitle" class="text-sm text-slate-400">Loading…</p>
+      </div>
+      <button id="refresh"
+        class="shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-300
+               active:scale-95 transition disabled:opacity-50">
+        Refresh
+      </button>
+    </header>
+
+    <!-- Non-blocking notices: location denied, load errors, empty list. -->
+    <div id="notice" class="hidden mb-4 rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm"></div>
+
+    <main id="content" class="space-y-8"></main>
+
+    <footer class="pt-10 text-center text-xs text-slate-600">
+      One shared list · <a id="manage-link" href="./manage.html" class="underline hover:text-slate-400">Manage spots</a>
+    </footer>
+  </div>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
