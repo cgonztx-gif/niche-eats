@@ -66,8 +66,15 @@ export async function resolveAndAdd(queries) {
  *
  * Resolves rather than rejects on denial: no location is a normal state the
  * dashboard handles by falling back to alphabetical order.
+ *
+ * Call this synchronously from a user gesture — never after an `await`. iOS
+ * Safari only raises the permission prompt while the gesture context is live.
+ *
+ * The timeout is generous because it also covers the time the prompt sits on
+ * screen: a short one expires while the user is still deciding and reports a
+ * failure for a permission they were about to grant.
  */
-export function getLocation({ timeout = 10000, maxAge = 300000 } = {}) {
+export function getLocation({ timeout = 20000, maxAge = 300000 } = {}) {
   return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(null);
     navigator.geolocation.getCurrentPosition(

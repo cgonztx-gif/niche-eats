@@ -101,35 +101,76 @@ function render() {
   }
 }
 
-async function locate() {
-  origin = await getLocation();
-  if (origin) {
-    hideNotice();
-  } else {
-    // Not an error: the list is still useful, just alphabetical.
-    showNotice('Location is off, so spots are listed alphabetically. Tap Refresh to try again.', 'warn');
-    el.notice.classList.remove('hidden');
+/**
+ * Guidance for when we have no location.
+ *
+ * Both Chrome and Safari remember a denial permanently, so a retry button is
+ * useless once blocked — the browser will never prompt again from script. In
+ * that state the only honest thing to show is where the setting lives.
+ */
+async function locationNotice() {
+  let denied = false;
+  try {
+    denied = (await navigator.permissions.query({ name: 'geolocation' })).state === 'denied';
+  } catch {
+    // Permissions API absent, or geolocation not queryable (older Safari).
+    // Fall through and offer the button; the worst case is a no-op tap.
   }
+
+  showNotice(
+    denied
+      ? `Location is blocked for this site, so spots are listed alphabetically.<br>
+         <span class="text-amber-200/70">iPhone: Settings → Apps → Safari → Location → Ask.
+         Desktop Chrome: the icon at the left of the address bar → Location → Allow.
+         Then reload.</span>`
+      : `Spots are listed alphabetically.
+         <button id="locate" class="ml-1 font-medium underline underline-offset-2">Use my location</button>`,
+    'warn',
+  );
+  el.notice.classList.remove('hidden');
+}
+
+/** Apply a location result and repaint. */
+async function applyLocation(location) {
+  origin = location;
+  if (origin) hideNotice();
+  else await locationNotice();
   render();
 }
 
 async function load() {
   el.refresh.disabled = true;
+
+  // Start geolocation BEFORE awaiting anything. iOS Safari only shows the
+  // permission prompt while the user-gesture context is alive, and awaiting
+  // the spot fetch first discards it — which is why tapping Refresh never
+  // produced a prompt on iPhone.
+  const locating = getLocation();
+
   try {
     spots = await fetchSpots();
     hideNotice();
     render();
-    await locate();
   } catch (error) {
     el.subtitle.textContent = 'Could not load';
     showNotice(`Couldn't load the list. ${escapeHtml(error.message)}`, 'error');
     el.notice.classList.remove('hidden');
-  } finally {
     el.refresh.disabled = false;
+    return;
   }
+
+  await applyLocation(await locating);
+  el.refresh.disabled = false;
 }
 
 el.refresh.addEventListener('click', load);
+
+el.notice.addEventListener('click', (event) => {
+  if (event.target.id !== 'locate') return;
+  // Called synchronously inside the click handler — no await may precede this,
+  // or iOS Safari drops the prompt.
+  getLocation().then(applyLocation);
+});
 
 // Open/closed flips with the clock without a reload.
 setInterval(() => { if (spots.length) render(); }, RERENDER_MS);
