@@ -40,11 +40,11 @@ The one writer for user actions. This is where the tricky logic lives.
 - [ ] Scaffold function (`supabase functions new resolve-and-add`)
 - [ ] Set secrets: Google Places key, Supabase service-role key
 - [ ] Call Text Search per query with the tight field mask
-- [ ] **Hours transform** — Google `periods[]` → `{ Weekday: [[open, close]] }`
-  - [ ] Group periods under their **open** day (overnight ranges stay on the opening day)
-  - [ ] 24-hour venues (`open` with no `close`) → `[["00:00","24:00"]]`
-  - [ ] Weekdays with no period → `[]`
-  - [ ] Unit tests covering: normal day, overnight, 24h, closed day
+- [x] **Hours transform** — Google `periods[]` → `{ Weekday: [[open, close]] }` (`supabase/functions/_shared/hours.ts`)
+  - [x] Group periods under their **open** day (overnight ranges stay on the opening day)
+  - [x] 24-hour venues (`open` with no `close`) → `[["00:00","24:00"]]`
+  - [x] Weekdays with no period → `[]`
+  - [x] Unit tests covering: normal day, overnight, 24h, closed day, malformed input
 - [ ] Upsert into `spots` on conflict with `place_id` (re-seeding must be a harmless no-op)
 - [ ] Per-query response status: `resolved` (with matched name + address) / `ambiguous` / `not_found`
 - [ ] CORS headers so the browser can invoke it
@@ -57,12 +57,12 @@ The one writer for user actions. This is where the tricky logic lives.
 - [ ] `index.html` shell — Tailwind Play CDN, mobile-first, viewport meta
 - [ ] Supabase client (anon key) — `select * from spots`
 - [ ] `navigator.geolocation` with permission-denied and error states handled
-- [ ] Haversine distance helper
-- [ ] **Open-status function** — current local time vs `hours`
-  - [ ] Overnight handling: `close < open` spans midnight (a Fri `["22:00","02:00"]` spot is open Sat 00:30)
-  - [ ] Unit tests for the boundary cases
+- [x] Haversine distance helper (`public/js/spots.js`)
+- [x] **Open-status function** — current local time vs `hours`
+  - [x] Overnight handling: `close <= open` spans midnight (a Fri `["22:00","02:00"]` spot is open Sat 00:30)
+  - [x] Unit tests for the boundary cases
 - [ ] Render **Open Now** (primary) and **Closed** (secondary, de-emphasized) buckets, each nearest-first
-- [ ] Distance label — `"0.4 mi away"`
+- [x] Distance label — `"0.4 mi away"` (`formatDistance`)
 - [ ] Maps deep link per card (`maps.apple.com/?daddr=` / `google.com/maps/dir/?api=1&destination=`)
 - [ ] Refresh-location control
 - [ ] Empty state (no spots seeded yet) and no-location state
