@@ -41,12 +41,12 @@ function rowHtml(row, index) {
 
   if (row.status === 'resolved') {
     return shell(
-      'border-emerald-900/60 bg-emerald-950/30',
-      `<div class="flex items-start gap-2">
-         <span class="text-emerald-400" aria-hidden="true">✓</span>
+      'border-open-dim bg-raised',
+      `<div class="flex items-start gap-2.5">
+         <span class="text-open" aria-hidden="true">✓</span>
          <div class="min-w-0">
-           <div class="font-medium text-emerald-100">${escapeHtml(row.name)}</div>
-           <div class="truncate text-emerald-200/60">${escapeHtml(row.address ?? '')}</div>
+           <div class="font-medium text-ink">${escapeHtml(row.name)}</div>
+           <div class="truncate text-ink-soft">${escapeHtml(row.address ?? '')}</div>
          </div>
        </div>`,
     );
@@ -59,25 +59,29 @@ function rowHtml(row, index) {
       .map(
         (candidate, ci) => `
         <button data-confirm="${index}" data-candidate="${ci}"
-          class="block w-full rounded-lg border border-slate-800 bg-slate-900/60 p-2 text-left
-                 hover:border-slate-600 active:scale-[0.99] transition">
-          <span class="block font-medium">${escapeHtml(candidate.name)}</span>
-          <span class="block truncate text-slate-500">${escapeHtml(candidate.address ?? '')}</span>
+          class="block w-full rounded-lg border border-line bg-base p-2.5 text-left transition
+                 hover:border-line-strong active:scale-[0.99] active:bg-pressed
+                 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
+          <span class="block font-medium text-ink">${escapeHtml(candidate.name)}</span>
+          <span class="block truncate text-ink-soft">${escapeHtml(candidate.address ?? '')}</span>
         </button>`,
       )
       .join('');
 
     return shell(
-      'border-amber-900/60 bg-amber-950/20',
-      `<div class="mb-2 text-amber-200">
-         Several matches for <span class="font-medium">${escapeHtml(row.query)}</span> — pick one:
+      'border-line bg-raised',
+      `<div class="mb-2.5 text-ink-soft">
+         Several matches for <span class="font-medium text-ink">${escapeHtml(row.query)}</span> — pick one:
        </div>
        <div class="space-y-1.5">${options}</div>`,
     );
   }
 
   if (row.status === 'pending') {
-    return shell('border-slate-800 bg-slate-900/60', `<span class="text-slate-400">Adding ${escapeHtml(row.query)}…</span>`);
+    return shell(
+      'border-line bg-raised',
+      `<span class="animate-pulse text-ink-soft">Adding ${escapeHtml(row.query)}…</span>`,
+    );
   }
 
   // not_found or error — keep the text editable so it can be corrected in place.
@@ -87,15 +91,16 @@ function rowHtml(row, index) {
       : 'No match. Add a city or street and try again.';
 
   return shell(
-    'border-slate-800 bg-slate-900/60',
-    `<div class="mb-2 text-slate-400">${message}</div>
+    row.status === 'error' ? 'border-closed/50 bg-closed-dim' : 'border-line bg-raised',
+    `<div class="mb-2.5 ${row.status === 'error' ? 'text-red-200' : 'text-ink-soft'}">${message}</div>
      <div class="flex gap-2">
        <input data-edit="${index}" value="${escapeHtml(row.query)}" spellcheck="false"
-         class="min-w-0 flex-1 rounded-lg border border-slate-800 bg-slate-950 px-2 py-1.5
-                focus:border-slate-600 focus:outline-none">
+         class="min-w-0 flex-1 rounded-lg border border-line bg-base px-2.5 py-1.5 text-ink
+                focus:border-line-strong focus:outline-none">
        <button data-retry="${index}"
-         class="shrink-0 rounded-lg border border-slate-700 px-3 py-1.5 text-slate-300
-                active:scale-95 transition">Retry</button>
+         class="shrink-0 rounded-lg border border-line-strong px-3 py-1.5 text-ink-soft transition
+                active:scale-95 active:text-ink
+                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">Retry</button>
      </div>`,
   );
 }

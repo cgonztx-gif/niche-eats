@@ -29,49 +29,76 @@ const escapeHtml = (value) =>
   }[ch]));
 
 function showNotice(html, tone = 'info') {
+  // Missing location is a normal state, not a warning — so it reads neutral.
+  // Only an actual failure earns colour.
   const tones = {
-    info: 'border-slate-800 bg-slate-900 text-slate-300',
-    warn: 'border-amber-900/60 bg-amber-950/40 text-amber-200',
-    error: 'border-red-900/60 bg-red-950/40 text-red-200',
+    info: 'border-line bg-raised text-ink-soft',
+    error: 'border-closed/50 bg-closed-dim text-red-200',
   };
-  el.notice.className = `mb-4 rounded-lg border p-3 text-sm ${tones[tone]}`;
+  el.notice.className = `mb-5 rounded-xl border p-3 text-sm ${tones[tone]}`;
   el.notice.innerHTML = html;
 }
 
 const hideNotice = () => el.notice.classList.add('hidden');
 
-function card(spot) {
+function card(spot, dimmed = false) {
+  // tabular-nums keeps "0.4 mi" and "11.2 mi" aligned down the column.
   const distance =
     spot.distance === null
       ? ''
-      : `<span class="text-slate-400">${escapeHtml(formatDistance(spot.distance))}</span>`;
-  const category = spot.category
-    ? `<span class="text-slate-500">${escapeHtml(spot.category)}</span>`
-    : '';
-  const separator = category && distance ? '<span class="text-slate-700">·</span>' : '';
+      : `<span class="tabular-nums">${escapeHtml(formatDistance(spot.distance))}</span>`;
+  const category = spot.category ? `<span>${escapeHtml(spot.category)}</span>` : '';
+  const separator = category && distance ? '<span class="text-ink-mute">·</span>' : '';
 
   return `
     <a href="${mapsUrl(spot, USE_APPLE_MAPS)}" target="_blank" rel="noopener"
-       class="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60
-              p-4 active:scale-[0.99] transition">
+       class="flex min-h-[64px] items-center justify-between gap-3 rounded-xl border border-line bg-raised
+              p-[14px] transition active:scale-[0.99] active:bg-pressed
+              focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
       <span class="min-w-0">
-        <span class="block truncate font-medium">${escapeHtml(spot.name)}</span>
-        <span class="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm">${category}${separator}${distance}</span>
+        <span class="block truncate text-[16px] font-medium ${dimmed ? 'text-ink-soft' : 'text-ink'}">
+          ${escapeHtml(spot.name)}
+        </span>
+        <span class="mt-1 flex flex-wrap items-center gap-1.5 text-[13px] text-ink-soft">
+          ${category}${separator}${distance}
+        </span>
       </span>
-      <span aria-hidden="true" class="shrink-0 text-slate-600">→</span>
+      <span aria-hidden="true" class="shrink-0 text-ink-mute">→</span>
     </a>`;
 }
 
-function section(title, items, { muted = false } = {}) {
+/**
+ * @param tone 'open' | 'closed'
+ *
+ * Colour never carries the status alone: the header is worded, and closed
+ * cards are additionally dimmed. Green/red is the most common colour-blind
+ * confusion pair, and open-vs-closed is the whole point of the screen.
+ */
+function section(title, items, tone) {
   if (items.length === 0) return '';
+  const isOpen = tone === 'open';
+
   return `
     <section>
-      <h2 class="mb-3 text-xs font-semibold uppercase tracking-widest ${muted ? 'text-slate-600' : 'text-emerald-400'}">
-        ${escapeHtml(title)} <span class="text-slate-600">(${items.length})</span>
-      </h2>
-      <div class="space-y-2 ${muted ? 'opacity-60' : ''}">${items.map(card).join('')}</div>
+      <div class="mb-3 flex items-center gap-2 border-b pb-2 ${isOpen ? 'border-open-dim' : 'border-closed-dim'}">
+        <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full ${isOpen ? 'bg-open' : 'bg-closed'}"></span>
+        <h2 class="text-[11px] font-semibold uppercase tracking-[0.1em] ${isOpen ? 'text-open' : 'text-closed'}">
+          ${escapeHtml(title)}
+        </h2>
+        <span class="text-[11px] tabular-nums text-ink-mute">(${items.length})</span>
+      </div>
+      <div class="space-y-2 ${isOpen ? '' : 'opacity-70'}">
+        ${items.map((spot) => card(spot, !isOpen)).join('')}
+      </div>
     </section>`;
 }
+
+/** Shape-of-the-content placeholder, so the first paint isn't a bare word. */
+const skeleton = () => `
+  <div class="space-y-2" aria-hidden="true">
+    ${Array.from({ length: 3 }, () =>
+      `<div class="h-[64px] animate-pulse rounded-xl border border-line bg-raised"></div>`).join('')}
+  </div>`;
 
 function render() {
   const { open, closed } = partitionSpots(spots, origin, new Date());
@@ -89,12 +116,12 @@ function render() {
     : `${open.length} open now`;
 
   el.content.innerHTML =
-    section('Open now', open) + section('Closed', closed, { muted: true });
+    section('Open now', open, 'open') + section('Closed', closed, 'closed');
 
   if (open.length === 0) {
     el.content.insertAdjacentHTML(
       'afterbegin',
-      `<p class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-400">
+      `<p class="rounded-xl border border-line bg-raised p-4 text-sm text-ink-soft">
          Nothing is open right now.
        </p>`,
     );
@@ -120,12 +147,12 @@ async function locationNotice() {
   showNotice(
     denied
       ? `Location is blocked for this site, so spots are listed alphabetically.<br>
-         <span class="text-amber-200/70">iPhone: Settings → Apps → Safari → Location → Ask.
+         <span class="text-ink-mute">iPhone: Settings → Apps → Safari → Location → Ask.
          Desktop Chrome: the icon at the left of the address bar → Location → Allow.
          Then reload.</span>`
       : `Spots are listed alphabetically.
-         <button id="locate" class="ml-1 font-medium underline underline-offset-2">Use my location</button>`,
-    'warn',
+         <button id="locate" class="ml-1 font-medium text-ink underline underline-offset-2">Use my location</button>`,
+    'info',
   );
   el.notice.classList.remove('hidden');
 }
@@ -140,6 +167,7 @@ async function applyLocation(location) {
 
 async function load() {
   el.refresh.disabled = true;
+  if (spots.length === 0) el.content.innerHTML = skeleton();
 
   // Start geolocation BEFORE awaiting anything. iOS Safari only shows the
   // permission prompt while the user-gesture context is alive, and awaiting
@@ -159,8 +187,11 @@ async function load() {
     return;
   }
 
-  await applyLocation(await locating);
+  // Re-enable before waiting on location. The list is already on screen, and
+  // geolocation can sit pending for the full timeout while the user decides —
+  // holding Refresh disabled that long makes the app feel stuck.
   el.refresh.disabled = false;
+  await applyLocation(await locating);
 }
 
 el.refresh.addEventListener('click', load);

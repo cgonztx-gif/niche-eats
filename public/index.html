@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Eats">
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
@@ -13,35 +13,76 @@
   <title>Niche Eats</title>
 
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Neutral grays rather than Tailwind's blue-tinted slate, so green and red
+    // are the only hues on screen. System font stack: zero network requests.
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0a0a0a',
+            raised: '#141414',
+            pressed: '#1c1c1c',
+            line: '#262626',
+            'line-strong': '#3d3d3d',
+            ink: '#fafafa',
+            'ink-soft': '#a3a3a3',
+            'ink-mute': '#6b6b6b',
+            open: '#22c55e',
+            'open-dim': '#16341f',
+            closed: '#ef4444',
+            'closed-dim': '#3a1a1a',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto',
+                   '"Helvetica Neue"', 'Arial', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
   <style>
     /* Safe-area padding so the app sits flush when launched from the Home Screen. */
     body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
     .pad-x { padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right)); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      /* The card press effect is motion too. */
+      a:active, button:active { transform: none !important; }
+    }
   </style>
 </head>
 
-<body class="min-h-full bg-slate-950 text-slate-100 antialiased">
-  <div class="mx-auto max-w-2xl pad-x pb-16">
+<body class="min-h-full bg-base font-sans text-ink antialiased">
+  <div class="mx-auto max-w-[560px] pad-x pb-16">
 
-    <header class="flex items-baseline justify-between gap-3 pt-6 pb-4">
-      <div>
-        <h1 class="text-2xl font-semibold tracking-tight">Niche Eats</h1>
-        <p id="subtitle" class="text-sm text-slate-400">Loading…</p>
+    <header class="flex items-baseline justify-between gap-3 pt-6 pb-5">
+      <div class="min-w-0">
+        <h1 class="text-2xl font-semibold tracking-[-0.02em]">Niche Eats</h1>
+        <p id="subtitle" class="mt-0.5 text-[13px] text-ink-soft">Loading…</p>
       </div>
       <button id="refresh"
-        class="shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-sm text-slate-300
-               active:scale-95 transition disabled:opacity-50">
+        class="shrink-0 rounded-full border border-line-strong px-3.5 py-1.5 text-sm font-medium text-ink-soft
+               transition active:scale-95 active:text-ink disabled:opacity-40
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
         Refresh
       </button>
     </header>
 
-    <!-- Non-blocking notices: location denied, load errors, empty list. -->
-    <div id="notice" class="hidden mb-4 rounded-lg border border-slate-800 bg-slate-900 p-3 text-sm"></div>
+    <!-- Non-blocking notices: location state, load errors, empty list. -->
+    <div id="notice" class="hidden mb-5 rounded-xl border border-line bg-raised p-3 text-sm"></div>
 
     <main id="content" class="space-y-8"></main>
 
-    <footer class="pt-10 text-center text-xs text-slate-600">
-      One shared list · <a id="manage-link" href="./manage.html" class="underline hover:text-slate-400">Manage spots</a>
+    <footer class="pt-10 text-center text-xs">
+      <a href="./manage.html" class="text-ink-mute underline underline-offset-2 transition hover:text-ink-soft">
+        Manage spots
+      </a>
     </footer>
   </div>
 
