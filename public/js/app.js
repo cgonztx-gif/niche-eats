@@ -66,7 +66,7 @@ function card(spot, dimmed, now) {
   // Tertiary line — distinguishes identical-name chain branches. Omitted (no
   // empty line) for rows added before the address column existed.
   const address = spot.formatted_address
-    ? `<span class="mt-0.5 block truncate text-[12px] text-ink-mute">${escapeHtml(spot.formatted_address)}</span>`
+    ? `<span class="mt-0.5 block truncate text-[13px] text-ink-soft">${escapeHtml(spot.formatted_address)}</span>`
     : '';
 
   return `

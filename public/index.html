@@ -74,6 +74,18 @@
       </button>
     </header>
 
+    <!-- Primary entry point into the add/remove view. -->
+    <a href="./manage.html"
+      class="mb-5 flex items-center justify-between gap-3 rounded-xl border border-line-strong bg-raised p-[14px]
+             transition active:scale-[0.99] active:bg-pressed
+             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
+      <span class="min-w-0">
+        <span class="block text-[16px] font-medium text-ink">Manage spots</span>
+        <span class="block text-[13px] text-ink-soft">Add or remove places from the list</span>
+      </span>
+      <span aria-hidden="true" class="shrink-0 text-ink-mute">→</span>
+    </a>
+
     <!-- Non-blocking notices: location state, load errors, empty list. -->
     <div id="notice" class="hidden mb-5 rounded-xl border border-line bg-raised p-3 text-sm"></div>
 
@@ -87,19 +99,6 @@
     </div>
 
     <main id="content" class="space-y-8"></main>
-
-    <footer class="pt-10">
-      <a href="./manage.html"
-        class="flex items-center justify-between gap-3 rounded-xl border border-line-strong bg-raised p-[14px]
-               transition active:scale-[0.99] active:bg-pressed
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong">
-        <span class="min-w-0">
-          <span class="block text-[16px] font-medium text-ink">Manage spots</span>
-          <span class="block text-[13px] text-ink-soft">Add or remove places from the list</span>
-        </span>
-        <span aria-hidden="true" class="shrink-0 text-ink-mute">→</span>
-      </a>
-    </footer>
   </div>
 
   <script type="module" src="./js/app.js"></script>
