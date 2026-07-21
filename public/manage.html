@@ -61,7 +61,7 @@
       <a href="./index.html" class="text-[13px] text-ink-soft transition hover:text-ink">&larr; Back</a>
       <h1 class="mt-2 text-2xl font-semibold tracking-[-0.02em]">Manage spots</h1>
       <p class="mt-0.5 text-[13px] text-ink-soft">
-        Everything you add here goes to the one list everyone sees.
+        List is shared between all users.
       </p>
     </header>
 
@@ -73,7 +73,7 @@
         <button id="ref-edit" class="text-[12px] text-ink-soft underline underline-offset-2 transition hover:text-ink">Change</button>
       </div>
       <p id="ref-label" class="mt-1 truncate text-sm text-ink">The University of Texas at Austin</p>
-      <p class="mt-1 text-[12px] text-ink-mute">Spots you add are sorted by distance from here, and any match over 60 miles away is rejected. This is not your location.</p>
+      <p class="mt-1 text-[12px] text-ink-mute">Spots you add are sorted by distance from this reference point. This is not your location.</p>
       <div id="ref-editor" class="mt-2 hidden gap-2">
         <input id="ref-input" spellcheck="false" placeholder="Address or place name"
           class="min-w-0 flex-1 rounded-lg border border-line bg-base px-2.5 py-1.5 text-sm text-ink
@@ -88,7 +88,7 @@
       <label for="queries" class="block text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-mute">
         Paste names — one per line
       </label>
-      <p class="text-[12px] text-ink-mute">Each name must exactly match the place's name on Google. Add a city or street to pin down the right location.</p>
+      <p class="text-[12px] text-ink-mute">Each line should match the name on Google.</p>
       <textarea id="queries" rows="6" spellcheck="false"
         placeholder="Franklin Barbecue Austin TX&#10;Veracruz All Natural Cesar Chavez&#10;Spicy Boys East 6th"
         class="w-full rounded-xl border border-line bg-raised p-3 text-sm text-ink
